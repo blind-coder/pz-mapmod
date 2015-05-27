@@ -1,6 +1,30 @@
 require "ISUI/ISCollapsableWindow"
 
 local bcUtils = {};
+bcUtils.dump = function(o, lvl) -- {{{ Small function to dump an object.
+  if lvl == nil then lvl = 5 end
+  if lvl < 0 then return "SO ("..tostring(o)..")" end
+
+  if type(o) == 'table' then
+    local s = '{ '
+    for k,v in pairs(o) do
+      if k == "prev" or k == "next" then
+        s = s .. '['..k..'] = '..tostring(v);
+      else
+        if type(k) ~= 'number' then k = '"'..k..'"' end
+        s = s .. '['..k..'] = ' .. bcUtils.dump(v, lvl - 1) .. ',\n'
+      end
+    end
+    return s .. '}\n'
+  else
+    return tostring(o)
+  end
+end
+-- }}}
+bcUtils.pline = function (text) -- {{{ Print text to logfile
+  print(tostring(text));
+end
+-- }}}
 bcUtils.isStove = function(o) -- {{{
 	if not o then return false end;
 	return instanceof(o, "IsoStove");
@@ -86,52 +110,58 @@ function BCMapWindow:createChildren() -- {{{
 	self:addChild(self.renderPanel);
 
 	self.drawMapButton = ISButton:new(1, 16, 98, 32, "Draw map", self, self.drawMap);
+	self.drawMapButton:initialise();
+	self.drawMapButton:setAnchorLeft(true);
+	self.drawMapButton:setAnchorTop(true);
+	self:addChild(self.drawMapButton);
 end
 -- }}}
 function BCMapWindow:drawMap() -- {{{
 	if not self.data then self.data = {} end
 
+	local player   = getSpecificPlayer(0);
 	local cell     = getCell();
 	local chunkMap = cell:getChunkMap(0);
 	local xMin     = chunkMap:getWorldXMinTiles();
 	local yMin     = chunkMap:getWorldYMinTiles();
+	local xPlayer  = math.floor(player:getX());
+	local yPlayer  = math.floor(player:getY());
+	local range    = 25 --[[ * (1+player:getTrait(Trait.Cartographer)) ]];
 
-	if not self.data[xMin]       then self.data[xMin]       = {} end
-	if not self.data[xMin][yMin] then self.data[xMin][yMin] = {} end
-	if not self.data[xMin][yMin].known then
-		self.data[xMin][yMin].known = true;
-		for x=0,cell:getWidthInTiles()-1 do
-			self.data[xMin][yMin][x] = {};
-			for y=0,cell:getHeightInTiles()-1 do
-				local sq = cell:getGridSquare(xMin + x, yMin + y, 0);
-				self.data[xMin][yMin][x][y] = {};
-				if sq then
-					self.data[xMin][yMin][x][y].collideN = sq:getProperties():Is(IsoFlagType.collideN);
-					self.data[xMin][yMin][x][y].collideW = sq:getProperties():Is(IsoFlagType.collideW);
+	for x=xPlayer-range,xPlayer+range do
+		if not self.data[x] then self.data[x] = {}; end
+		for y=yPlayer-range,yPlayer+range do
+			local sq = cell:getGridSquare(x, y, 0);
 
-					--[[
-					local objects = sq:getObjects();
-					for i=0,objects:size()-1 do
-						local it = objects:get(i);
-						print((x+xMin).."x"..(y+yMin)..": Item #"..(i+1)..": "..tostring(it:getName()).."/"..tostring(it:getTextureName()));
-					end
-					--]]
-					local objects = sq:getObjects();
-					for k=0,objects:size()-1 do
-						local it = objects:get(k);
-						if bcUtils.isStove(it) then
-							print((x+xMin).."x"..(y+yMin)..": Stove")
-						elseif bcUtils.isWindow(it) then
-							print((x+xMin).."x"..(y+yMin)..": Window")
-						elseif bcUtils.isDoor(it) then
-							print((x+xMin).."x"..(y+yMin)..": Door")
-						elseif bcUtils.isTree(it) then
-							print((x+xMin).."x"..(y+yMin)..": Tree")
-						elseif bcUtils.isContainer(it) then
-							print((x+xMin).."x"..(y+yMin)..": Container: "..tostring(it:getContainer():getType()))
-						else
-							print((x+xMin).."x"..(y+yMin)..": Item #"..(k+1)..": "..tostring(it:getName()).."/"..tostring(it:getTextureName()));
-						end
+			local canSee = sq:isCanSee(0);
+
+			if sq and canSee then
+				if not self.data[x][y] then self.data[x][y] = {}; end
+				self.data[x][y].collideN = sq:getProperties():Is(IsoFlagType.collideN);
+				self.data[x][y].collideW = sq:getProperties():Is(IsoFlagType.collideW);
+
+				local objects = sq:getObjects();
+				for k=0,objects:size()-1 do
+					local it = objects:get(k);
+					if bcUtils.isStove(it) then
+						print(x.."x"..y..": Stove")
+						self.data[x][y].draw = "stove";
+					elseif bcUtils.isWindow(it) then
+						print(x.."x"..y..": Window")
+						self.data[x][y].draw = "window";
+					elseif bcUtils.isDoor(it) then
+						print(x.."x"..y..": Door")
+						self.data[x][y].draw = "door";
+					elseif bcUtils.isTree(it) then
+						print(x.."x"..y..": Tree")
+						self.data[x][y].draw = "tree";
+					elseif bcUtils.isContainer(it) then
+						print(x.."x"..y..": Container: "..tostring(it:getContainer():getType()))
+						self.data[x][y].draw = "container";
+						self.data[x][y].desc = tostring(it:getContainer():getType());
+					else
+						--print(x.."x"..y..": Item #"..(k+1)..": "..tostring(it:getName()).."/"..tostring(it:getTextureName()));
+						self.data[x][y].draw = "unknown";
 					end
 				end
 			end
@@ -193,26 +223,40 @@ end
 function BCMapWindow:renderMap() -- {{{
 	self:setStencilRect(0,0,self:getWidth(), self:getHeight());
 
-	self.parent:grabInfo();
+	-- self.parent:grabInfo();
 	local data = self.parent.data;
+	if not data then return end;
 
-	local cell = getCell(); --self.parent.cell;
-	local chunkMap = cell:getChunkMap(0);
-	local xMin = chunkMap:getWorldXMinTiles();
-	local yMin = chunkMap:getWorldYMinTiles();
-	local rW = math.min(self.width, self.height) / cell:getWidthInTiles();
-	local rH = math.min(self.width, self.height) / cell:getHeightInTiles();
+	local player = getSpecificPlayer(0);
+	local xPlayer = math.floor(player:getX());
+	local yPlayer = math.floor(player:getY());
+	local range = 25 --[[ * self.parent.zoom ]];
+	local rW = math.min(self.width, self.height) / (range * 2);
+	local rH = math.min(self.width, self.height) / (range * 2);
 
-	for x=0,cell:getWidthInTiles()-1 do
-		for y=0,cell:getHeightInTiles()-1 do
+	local gx = 0;
+	for x=xPlayer-range,xPlayer+range do
+		if data[x] then
+			local gy = 0;
+			for y=yPlayer-range,yPlayer+range do
+				if data[x][y] then
 
-			if data[xMin][yMin][x][y].collideN then
-				self:drawRect(rW * x, rH * y, rW, 4, 1.0, 0.9, 0.163, 0.064);
-			end
-			if data[xMin][yMin][x][y].collideW then
-				self:drawRect(rW * x, rH * y, 4, rH, 1.0, 0.9, 0.163, 0.064);
+					if data[x][y].collideN then
+						self:drawRect(rW * gx, rH * gy, rW, 4, 1.0, 0.9, 0.163, 0.064);
+					end
+					if data[x][y].collideW then
+						self:drawRect(rW * gx, rH * gy, 4, rH, 1.0, 0.9, 0.163, 0.064);
+					end
+					if data[x][y].desc then
+						local offy = getTextManager():MeasureStringY(UIFont.Small, data[x][y].desc);
+						self:drawText(data[x][y].desc, rW*gx, rH * (gy + 1) - (offy + 2), 0.9, 0.863, 0.964, 1.0, UIFont.Small);
+					end
+
+				end
+				gy = gy + 1;
 			end
 		end
+		gx = gx + 1;
 	end
 
 	self:clearStencilRect();
@@ -224,7 +268,7 @@ function BCMapWindow:new (x, y, width, height)
 	o = ISCollapsableWindow:new(x, y, width, height);
 	setmetatable(o, self)
 	self.__index = self
-	o.backgroundColor = {r=0, g=0, b=0, a=1.0};
+	o.backgroundColor = {r=0, g=0, b=0, a=0.7};
 
 	o.zoom = 1;
 
@@ -232,6 +276,7 @@ function BCMapWindow:new (x, y, width, height)
 end
 
 function BCMapModCreateWindow()
+	print("Creating BCMapWindow");
 	local m = BCMapWindow:new(0, 0, 600, 600);
 	m:setVisible(true);
 	m:addToUIManager();
