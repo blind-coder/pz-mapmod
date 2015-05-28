@@ -53,11 +53,6 @@ end
 
 BCMapWindow = ISCollapsableWindow:derive("BCMapWindow");
 
-function BCMapWindow:initialise()
-	ISCollapsableWindow.initialise(self);
-	self.title = "Map booklet";
-end
-
 --[[ {{{ TODO mouse handling
 function BCMapWindow:onMapMouseDown(x, y)
 	local cell = getCell();
@@ -98,6 +93,11 @@ function BCMapWindow:onRenderMouseWheel(del)
 end
 -- }}} ]]
 
+function BCMapWindow:initialise() -- {{{
+	ISCollapsableWindow.initialise(self);
+	self.title = "Map booklet";
+end
+-- }}}
 function BCMapWindow:createChildren() -- {{{
 	ISCollapsableWindow.createChildren(self);
 
@@ -122,17 +122,14 @@ function BCMapWindow:drawMap() -- {{{
 	local player   = getSpecificPlayer(0);
 	local cell     = getCell();
 	local chunkMap = cell:getChunkMap(0);
-	local xMin     = chunkMap:getWorldXMinTiles();
-	local yMin     = chunkMap:getWorldYMinTiles();
 	local xPlayer  = math.floor(player:getX());
 	local yPlayer  = math.floor(player:getY());
-	local range    = 25 --[[ * (1+player:getTrait(Trait.Cartographer)) ]];
+	local range    = 10 --[[ * (1+player:getTrait(Trait.Cartographer)) ]];
 
 	for x=xPlayer-range,xPlayer+range do
 		if not self.data[x] then self.data[x] = {}; end
 		for y=yPlayer-range,yPlayer+range do
 			local sq = cell:getGridSquare(x, y, 0);
-
 			local canSee = sq:isCanSee(0);
 
 			if sq and canSee then
@@ -221,7 +218,7 @@ function BCMapWindow:grabInfo() -- {{{
 end
 -- }}}
 function BCMapWindow:renderMap() -- {{{
-	self:setStencilRect(0,0,self:getWidth(), self:getHeight());
+	-- self:setStencilRect(0,0,self:getWidth(), self:getHeight());
 
 	-- self.parent:grabInfo();
 	local data = self.parent.data;
@@ -230,9 +227,16 @@ function BCMapWindow:renderMap() -- {{{
 	local player = getSpecificPlayer(0);
 	local xPlayer = math.floor(player:getX());
 	local yPlayer = math.floor(player:getY());
-	local range = 25 --[[ * self.parent.zoom ]];
-	local rW = math.min(self.width, self.height) / (range * 2);
-	local rH = math.min(self.width, self.height) / (range * 2);
+	local range = 10 --[[ * self.parent.zoom ]];
+	local rW = math.floor(math.min(self.width, self.height) / (range * 2 + 1));
+	local rH = rW; -- math.min(self.width, self.height) / (range * 2);
+
+	for x=0,range*2,2 do
+		self:drawRectBorder(rW*x, 0, rW, rH*(range*2+1), 1.0, 0.8, 0.8, 0.8);
+	end
+	for y=0,range*2,2 do
+		self:drawRectBorder(0, rH*y, rW*(range*2+1), rH, 1.0, 0.8, 0.8, 0.8);
+	end
 
 	local gx = 0;
 	for x=xPlayer-range,xPlayer+range do
@@ -259,7 +263,7 @@ function BCMapWindow:renderMap() -- {{{
 		gx = gx + 1;
 	end
 
-	self:clearStencilRect();
+	-- self:clearStencilRect();
 end
 -- }}}
 
