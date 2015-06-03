@@ -53,45 +53,58 @@ end
 
 BCMapWindow = ISCollapsableWindow:derive("BCMapWindow");
 
---[[ {{{ TODO mouse handling
-function BCMapWindow:onMapMouseDown(x, y)
-	local cell = getCell();
-	x = translatePointXInOverheadMapToWorld(x, self.javaObject,self.parent.zoom, self.parent.xpos);
-	y = translatePointYInOverheadMapToWorld(y, self.javaObject,self.parent.zoom, self.parent.ypos);
-	local sq = cell:getGridSquare(x, y, 0);
-	self.parent.selectedSquare = sq;
-	self.parent:fillInfo();
-	return true;
-end
-
-function BCMapWindow:onMapMouseMove(dx, dy)
-	if self.panning then
-		self.parent.xpos = self.parent.xpos - ((dx)/self.parent.zoom);
-		self.parent.ypos = self.parent.ypos - ((dy)/self.parent.zoom);
-	end
-	return true;
-end
-
-function BCMapWindow:onMapRightMouseDown(x, y)
+function BCMapWindow:onMapMouseDown(x, y)--{{{
 	self.panning = true;
+	self.panx = 0;
+	self.pany = 0;
 	return true;
 end
-
-function BCMapWindow:onMapRightMouseUp(x, y)
+--}}}
+function BCMapWindow:onMapMouseUp(x, y)--{{{
 	self.panning = false;
 	return true;
 end
-
-function BCMapWindow:onRenderMouseWheel(del)
-	if(del > 0) then
-		self.parent.zoom = self.parent.zoom* 0.8;
-	else
-		self.parent.zoom = self.parent.zoom* 1.2;
+--}}}
+function BCMapWindow:onMapMouseMove(dx, dy)--{{{
+	if self.panning then
+		self.panx = self.panx + dx;
+		self.pany = self.pany + dy;
+		bcUtils.pline("Current pan: "..self.panx.."x"..self.pany);
+		if math.abs(self.panx) > math.floor(64 / self.parent.zoom) then
+			bcUtils.pline("self.parent.x = "..self.parent.x.." + (("..self.panx..")/math.floor(64 / "..self.parent.zoom.."))");
+			self.parent.x = self.parent.x - math.floor((self.panx)/math.floor(64 / self.parent.zoom));
+			self.panx = self.panx % math.floor(64 / self.parent.zoom);
+		end
+		if math.abs(self.pany) > math.floor(64 / self.parent.zoom) then
+			bcUtils.pline("self.parent.y = "..self.parent.y.." + (("..self.pany..")/math.floor(64 / "..self.parent.zoom.."))");
+			self.parent.y = self.parent.y - math.floor((self.pany)/math.floor(64 / self.parent.zoom));
+			self.pany = self.pany % math.floor(64 / self.parent.zoom);
+		end
 	end
-	if self.parent.zoom > 30 then self.parent.zoom = 30 end
 	return true;
 end
--- }}} ]]
+--}}}
+function BCMapWindow:onMapRightMouseDown(x, y)--{{{
+	self.panning = true;
+	self.panx = 0;
+	self.pany = 0;
+	return true;
+end
+--}}}
+function BCMapWindow:onMapRightMouseUp(x, y)--{{{
+	self.panning = false;
+	return true;
+end
+--}}}
+function BCMapWindow:onMapMouseWheel(del)--{{{
+	if (del > 0) then
+		self.parent.zoom = math.min(8, self.parent.zoom + 1);
+	else
+		self.parent.zoom = math.max(1, self.parent.zoom - 1);
+	end
+	return true;
+end
+--}}}
 
 function BCMapWindow:initialise() -- {{{
 	ISCollapsableWindow.initialise(self);
@@ -107,6 +120,15 @@ function BCMapWindow:createChildren() -- {{{
 	self.renderPanel:initialise();
 	self.renderPanel:setAnchorRight(true);
 	self.renderPanel:setAnchorBottom(true);
+	self.renderPanel.onMouseWheel = BCMapWindow.onMapMouseWheel;
+	self.renderPanel.onMouseUp = BCMapWindow.onMapMouseUp;
+	self.renderPanel.onMouseUpOutside = BCMapWindow.onMapMouseUp;
+	self.renderPanel.onMouseDown = BCMapWindow.onMapMouseDown;
+	self.renderPanel.onRightMouseUp = BCMapWindow.onMapRightMouseUp;
+	self.renderPanel.onRightMouseUpOutside = BCMapWindow.onMapRightMouseUp;
+	self.renderPanel.onRightMouseDown = BCMapWindow.onMapRightMouseDown;
+	self.renderPanel.onMouseMove = BCMapWindow.onMapMouseMove;
+	self.renderPanel.onMouseMoveOutside = BCMapWindow.onMapMouseMove;
 	self:addChild(self.renderPanel);
 
 	self.drawMapButton = ISButton:new(1, 16, 98, 32, "Draw map", self, self.drawMap);
@@ -114,17 +136,48 @@ function BCMapWindow:createChildren() -- {{{
 	self.drawMapButton:setAnchorLeft(true);
 	self.drawMapButton:setAnchorTop(true);
 	self:addChild(self.drawMapButton);
+
+	self.zoomOutButton = ISButton:new(1, 48, 98, 32, "Zoom -", self, self.zoomOut);
+	self.zoomOutButton:initialise();
+	self.zoomOutButton:setAnchorLeft(true);
+	self.zoomOutButton:setAnchorTop(true);
+	self:addChild(self.zoomOutButton);
+
+	self.zoomInButton = ISButton:new(1, 80, 98, 32, "Zoom +", self, self.zoomIn);
+	self.zoomInButton:initialise();
+	self.zoomInButton:setAnchorLeft(true);
+	self.zoomInButton:setAnchorTop(true);
+	self:addChild(self.zoomInButton);
+
 end
 -- }}}
 function BCMapWindow:drawMap() -- {{{
-	if not self.data then self.data = {} end
-
 	local player   = getSpecificPlayer(0);
 	local cell     = getCell();
 	local chunkMap = cell:getChunkMap(0);
 	local xPlayer  = math.floor(player:getX());
 	local yPlayer  = math.floor(player:getY());
 	local range    = 10 --[[ * (1+player:getTrait(Trait.Cartographer)) ]];
+	local locKnown = false; -- player does NOT know where on the map s/he is
+
+	if not self.data then
+		self.data = {}
+		locKnown = true; -- unless this is the first draw of the map
+	end
+
+	if self.data[xPlayer] then
+		if self.data[xPlayer][yPlayer] then
+			locKnown = true; -- or the player has already drawn this part of the map
+		end
+	end
+
+	if not locKnown then
+		player:Say("I don't know where I am...");
+		return
+	else
+		self.x = xPlayer;
+		self.y = yPlayer;
+	end
 
 	for x=xPlayer-range,xPlayer+range do
 		if not self.data[x] then self.data[x] = {}; end
@@ -134,8 +187,17 @@ function BCMapWindow:drawMap() -- {{{
 
 			if sq and canSee then
 				if not self.data[x][y] then self.data[x][y] = {}; end
-				self.data[x][y].collideN = sq:getProperties():Is(IsoFlagType.collideN);
-				self.data[x][y].collideW = sq:getProperties():Is(IsoFlagType.collideW);
+				-- self.data[xMin][yMin][x][y].collideN = sq:getProperties():Is(IsoFlagType.collideN);
+				-- self.data[xMin][yMin][x][y].collideW = sq:getProperties():Is(IsoFlagType.collideW);
+				local nsq;
+				nsq = cell:getGridSquare(x, y-1, 0);
+				self.data[x][y].collideN = sq:isBlockedTo(nsq) or sq:isDoorTo(nsq);
+				nsq = cell:getGridSquare(x, y+1, 0);
+				self.data[x][y].collideS = sq:isBlockedTo(nsq) or sq:isDoorTo(nsq);
+				nsq = cell:getGridSquare(x-1, y, 0);
+				self.data[x][y].collideW = sq:isBlockedTo(nsq) or sq:isDoorTo(nsq);
+				nsq = cell:getGridSquare(x+1, y, 0);
+				self.data[x][y].collideE = sq:isBlockedTo(nsq) or sq:isDoorTo(nsq);
 
 				local objects = sq:getObjects();
 				for k=0,objects:size()-1 do
@@ -149,6 +211,11 @@ function BCMapWindow:drawMap() -- {{{
 					elseif bcUtils.isDoor(it) then
 						print(x.."x"..y..": Door")
 						self.data[x][y].draw = "door";
+						if it.north then
+							self.data[x][y].collideN = true;
+						else
+							self.data[x][y].collideW = true;
+						end
 					elseif bcUtils.isTree(it) then
 						print(x.."x"..y..": Tree")
 						self.data[x][y].draw = "tree";
@@ -166,6 +233,25 @@ function BCMapWindow:drawMap() -- {{{
 	end
 end
 -- }}}
+function BCMapWindow:zoomOut() -- {{{
+	self:changeZoom(1);
+end
+-- }}}
+function BCMapWindow:zoomIn() -- {{{
+	self:changeZoom(-1);
+end
+-- }}}
+function BCMapWindow:changeZoom(change) -- {{{
+	if not self.zoom then
+		self.zoom = 1 + change;
+	else
+		self.zoom = self.zoom + change;
+	end
+	self.zoom = math.max(self.zoom, 1);
+	self.zoom = math.min(self.zoom, 8);
+end
+-- }}}
+
 function BCMapWindow:grabInfo() -- {{{
 	if not self.data then self.data = {} end
 
@@ -205,10 +291,10 @@ function BCMapWindow:grabInfo() -- {{{
 							print((x+xMin).."x"..(y+yMin)..": Door")
 						elseif bcUtils.isTree(it) then
 							print((x+xMin).."x"..(y+yMin)..": Tree")
-						elseif bcUtils.isContainer(it) then
-							print((x+xMin).."x"..(y+yMin)..": Container: "..tostring(it:getContainer():getType()))
-						else
-							print((x+xMin).."x"..(y+yMin)..": Item #"..(k+1)..": "..tostring(it:getName()).."/"..tostring(it:getTextureName()));
+						-- elseif bcUtils.isContainer(it) then
+							-- print((x+xMin).."x"..(y+yMin)..": Container: "..tostring(it:getContainer():getType()))
+						-- else
+							-- print((x+xMin).."x"..(y+yMin)..": Item #"..(k+1)..": "..tostring(it:getName()).."/"..tostring(it:getTextureName()));
 						end
 					end
 				end
@@ -217,6 +303,7 @@ function BCMapWindow:grabInfo() -- {{{
 	end
 end
 -- }}}
+
 function BCMapWindow:renderMap() -- {{{
 	-- self:setStencilRect(0,0,self:getWidth(), self:getHeight());
 
@@ -224,32 +311,51 @@ function BCMapWindow:renderMap() -- {{{
 	local data = self.parent.data;
 	if not data then return end;
 
-	local player = getSpecificPlayer(0);
-	local xPlayer = math.floor(player:getX());
-	local yPlayer = math.floor(player:getY());
+	-- local player = getSpecificPlayer(0);
+	-- local xPlayer = math.floor(player:getX());
+	-- local yPlayer = math.floor(player:getY());
+	local xPlayer = self.parent.x;
+	local yPlayer = self.parent.y;
 	local range = 10 --[[ * self.parent.zoom ]];
-	local rW = math.floor(math.min(self.width, self.height) / (range * 2 + 1));
+	-- local rW = math.floor(math.min(self.width, self.height) / (range * 2 + 1));
+	local rW = 64 / self.parent.zoom;
 	local rH = rW; -- math.min(self.width, self.height) / (range * 2);
+	local xRange = math.floor(self.width/rW);
+	local yRange = math.floor(self.height/rH);
 
-	for x=0,range*2,2 do
-		self:drawRectBorder(rW*x, 0, rW, rH*(range*2+1), 1.0, 0.8, 0.8, 0.8);
+	--[[
+	for x=0,self.width,rW*2 do
+		self:drawRectBorder(x, 0, rW, self.height-(self.height % rH), 1.0, 0.8, 0.8, 0.8);
 	end
-	for y=0,range*2,2 do
-		self:drawRectBorder(0, rH*y, rW*(range*2+1), rH, 1.0, 0.8, 0.8, 0.8);
+	for y=0,self.height,rH*2 do
+		self:drawRectBorder(0, y, self.width-(self.width % rW), rH, 1.0, 0.8, 0.8, 0.8);
 	end
+	self:drawRectBorder(0, 0, self.width-(self.width % rW), self.height-(self.height % rH), 1.0, 0.8, 0.8, 0.8);
+	--]]
+
+	x = xPlayer - math.floor(xRange / 2);
+	y = yPlayer - math.floor(yRange / 2);
 
 	local gx = 0;
-	for x=xPlayer-range,xPlayer+range do
+	for x=xPlayer - math.floor(xRange / 2),xPlayer + math.floor(xRange / 2) - 1 do
 		if data[x] then
 			local gy = 0;
-			for y=yPlayer-range,yPlayer+range do
+			for y=yPlayer - math.floor(yRange / 2),yPlayer + math.floor(yRange / 2) - 1 do
 				if data[x][y] then
+
+					self:drawRectBorder(rW * gx, rH * gy, rW, rH, 1.0, 0.8, 0.8, 0.8);
 
 					if data[x][y].collideN then
 						self:drawRect(rW * gx, rH * gy, rW, 4, 1.0, 0.9, 0.163, 0.064);
 					end
+					if data[x][y].collideS then
+						self:drawRect(rW * gx, rH * (gy+1), rW, 4, 1.0, 0.9, 0.163, 0.064);
+					end
 					if data[x][y].collideW then
 						self:drawRect(rW * gx, rH * gy, 4, rH, 1.0, 0.9, 0.163, 0.064);
+					end
+					if data[x][y].collideE then
+						self:drawRect(rW * (gx+1), rH * gy, 4, rH, 1.0, 0.9, 0.163, 0.064);
 					end
 					if data[x][y].desc then
 						local offy = getTextManager():MeasureStringY(UIFont.Small, data[x][y].desc);
@@ -273,7 +379,8 @@ function BCMapWindow:new (x, y, width, height)
 	setmetatable(o, self)
 	self.__index = self
 	o.backgroundColor = {r=0, g=0, b=0, a=0.7};
-
+	o.x = 0;
+	o.y = 0;
 	o.zoom = 1;
 
 	return o
@@ -281,7 +388,7 @@ end
 
 function BCMapModCreateWindow()
 	print("Creating BCMapWindow");
-	local m = BCMapWindow:new(0, 0, 600, 600);
+	local m = BCMapWindow:new(50, 50, getCore():getScreenWidth() - 100, getCore():getScreenHeight() - 100);
 	m:setVisible(true);
 	m:addToUIManager();
 end
