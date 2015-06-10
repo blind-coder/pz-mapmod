@@ -1,3 +1,5 @@
+Unless PC can determine position by actually seeing a spot alread ON the map, ask the player where to draw!
+
 American Holly/
 American Holly/e_americanholly_1_2
 American Holly/e_americanholly_1_3
