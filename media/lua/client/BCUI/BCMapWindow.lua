@@ -1,6 +1,7 @@
 require "ISUI/ISCollapsableWindow"
 
-ISBuildMenu.cheat = true;
+-- ISBuildMenu.cheat = true;
+
 local bcUtils = {};
 bcUtils.dump = function(o, lvl) -- {{{ Small function to dump an object.
   if lvl == nil then lvl = 5 end
@@ -49,6 +50,10 @@ end
 bcUtils.isContainer = function(o) -- {{{
 	if not o then return false end;
 	return o:getContainer();
+end
+-- }}}
+bcUtils:isPenOrPencil = function(o) -- {{{
+	return o:getFullType() == "Base.Pen" or o:getFullType() == "Base.Pencil";
 end
 -- }}}
 
@@ -384,4 +389,24 @@ function BCMapModCreateWindow()
 	m:addToUIManager();
 end
 
+function BCMapModPlayerMove()
+	local player = getSpecificPlayer(0);
+
+	if player:IsRunning() then return end -- No drawing maps when you're running around
+
+	local primary = player:getPrimaryHandItem();
+	local secondary = player:getSecondaryHandItem();
+
+	if secondary:getFullType() == "BCMapMod.Map" then
+		swap = primary;
+		primary = secondary;
+		secondary = swap;
+	end
+
+	if primary:getFullType() == "BCMapMod.Map" and bcUtils:isPenOrPencil(secondary) then
+		primary:drawSurroundings(math.floor(player:getX()), math.floor(player:getY()), (2 --[[ + player:getTrait(Trait.Cartographer) ]]) * 2);
+	end
+end
+
 Events.OnGameStart.Add(BCMapModCreateWindow);
+Events.OnPlayerMove.Add(BCMapModPlayerMove);
