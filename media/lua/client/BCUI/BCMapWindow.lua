@@ -284,9 +284,6 @@ function BCMapWindow:drawMap() -- {{{
 
 			nsq = cell:getGridSquare(x+1, y, 0);
 			if canSee or nsq:isCanSee(0) then
-				if sq:isBlockedTo(nsq) or sq:isDoorTo(nsq) then
-					print(x.."x"..y..": collideW");
-				end
 				self.item.data[x+1+xOffset][y+yOffset].collideW = sq:isBlockedTo(nsq) or sq:isDoorTo(nsq);
 			end
 
