@@ -52,12 +52,19 @@ bcUtils.isContainer = function(o) -- {{{
 	return o:getContainer();
 end
 -- }}}
-bcUtils:isPenOrPencil = function(o) -- {{{
+bcUtils.isPenOrPencil = function(o) -- {{{
 	return o:getFullType() == "Base.Pen" or o:getFullType() == "Base.Pencil";
 end
 -- }}}
-bcUtils:isMap = function(o) -- {{{
+bcUtils.isMap = function(o) -- {{{
 	return o:getFullType() == "BCMapMod.Map";
+end
+-- }}}
+bcUtils.tableIsEmpty = function(o) -- {{{
+	for _,_ in pairs(o) do
+		return false
+	end
+	return true
 end
 -- }}}
 
@@ -179,12 +186,14 @@ function BCMapWindow:findLocation() -- {{{
 		return;
 	end
 
+	local data = BCMapMod.getDataFromModData(self.item);
+
 	-- Check if we know some place close to us
 	for x=xPlayer-5,xPlayer+5 do
-		if self.item.data[x] then
+		if data[x] then
 			for y=yPlayer-5,yPlayer+5 do
-				if self.item.data[x][y] then
-					if self.item.data[x][y].fake then
+				if data[x][y] then
+					if data[x][y].fake then
 						self.locationFake = true;
 					else
 						self.locationKnown = true; -- the player has already drawn this part of the map
@@ -231,9 +240,10 @@ function BCMapWindow:drawMap() -- {{{
 	local yPlayer  = math.floor(player:getY());
 	local range    = 10 --[[ * (1+player:getTrait(Trait.Cartographer)) ]];
 
-	if not self.item.data then
-		self.item.data = {}
-		self.locationKnown = true; -- unless this is the first draw of the map
+	local data = BCMapMod.getDataFromModData(self.item);
+
+	if bcUtils.tableIsEmpty(data) then -- data is empty
+		self.locationKnown = true; -- player doesn't know its location unless this is the first draw of the map
 	end
 
 	if not self.locationKnown and not self.locationFake then
@@ -245,84 +255,93 @@ function BCMapWindow:drawMap() -- {{{
 		return
 	end
 
-	local xOffset = 0;
-	local yOffset = 0;
-	if self.drawFakeMap then
-		xOffset = self.x - xPlayer;
-		yOffset = self.y - yPlayer;
-	else
-		self.x = xPlayer;
-		self.y = yPlayer;
-	end
-
 	for x=xPlayer-range,xPlayer+range do
 		for y=yPlayer-range,yPlayer+range do
-			for x2=x-1,x+1 do
-				if not self.item.data[x2+xOffset] then self.item.data[x2+xOffset] = {}; end
-				for y2=y-1,y+1 do
-					if not self.item.data[x2+xOffset][y2+yOffset] then self.item.data[x2+xOffset][y2+yOffset] = {}; end
+			self:drawSquare(x, y);
+		end
+	end
+end
+-- }}}
+function BCMapWindow:drawSquare(x, y) -- {{{
+	local xOffset = 0;
+	local yOffset = 0;
+	local x2;
+	local y2;
+	local data = BCMapMod.getDataFromModData(self.item);
+	local cell = getCell();
+
+	if self.drawFakeMap then
+		xOffset = self.x - x;
+		yOffset = self.y - y;
+	else
+		self.x = x;
+		self.y = y;
+	end
+
+	for x2=x-1,x+1 do
+		if not data[x2+xOffset] then data[x2+xOffset] = {}; end
+		for y2=y-1,y+1 do
+			if not data[x2+xOffset][y2+yOffset] then data[x2+xOffset][y2+yOffset] = {}; end
+		end
+	end
+	local sq = cell:getGridSquare(x, y, 0);
+	local canSee = sq:isCanSee(0);
+
+	local nsq;
+	nsq = cell:getGridSquare(x, y-1, 0);
+	if canSee or nsq:isCanSee(0) then
+		data[x+xOffset][y+yOffset].collideN = nsq:isBlockedTo(sq) or nsq:isDoorTo(sq);
+	end
+
+	nsq = cell:getGridSquare(x, y+1, 0);
+	if canSee or nsq:isCanSee(0) then
+		data[x+xOffset][y+1+yOffset].collideN = sq:isBlockedTo(nsq) or sq:isDoorTo(nsq);
+	end
+
+	nsq = cell:getGridSquare(x-1, y, 0);
+	if canSee or nsq:isCanSee(0) then
+		data[x+xOffset][y+yOffset].collideW = nsq:isBlockedTo(sq) or nsq:isDoorTo(sq);
+	end
+
+	nsq = cell:getGridSquare(x+1, y, 0);
+	if canSee or nsq:isCanSee(0) then
+		data[x+1+xOffset][y+yOffset].collideW = sq:isBlockedTo(nsq) or sq:isDoorTo(nsq);
+	end
+
+	if canSee then
+		data[x+xOffset][y+yOffset].seen = true;
+		data[x+xOffset][y+yOffset].drawnBy = getSpecificPlayer(0):getForname().." "..getSpecificPlayer(0):getSurname();
+		data[x+xOffset][y+yOffset].fake = self.drawFakeMap;
+
+		local objects = sq:getObjects();
+		for k=0,objects:size()-1 do
+			local it = objects:get(k);
+			if bcUtils.isStove(it) then
+				print(x.."x"..y..": Stove")
+				data[x+xOffset][y+yOffset].draw = "stove";
+			elseif bcUtils.isWindow(it) then
+				print(x.."x"..y..": Window")
+				data[x+xOffset][y+yOffset].draw = "window";
+			elseif bcUtils.isDoor(it) then
+				print(x.."x"..y..": Door")
+				data[x+xOffset][y+yOffset].draw = "door";
+				if it.north then
+					data[x+xOffset][y+yOffset].collideN = true;
+					-- data[x+xOffset][y+yOffset].doorDirection = "north";
+				else
+					data[x+xOffset][y+yOffset].collideW = true;
+					-- data[x+xOffset][y+yOffset].doorDirection = "west";
 				end
-			end
-			local sq = cell:getGridSquare(x, y, 0);
-			local canSee = sq:isCanSee(0);
-
-			local nsq;
-			nsq = cell:getGridSquare(x, y-1, 0);
-			if canSee or nsq:isCanSee(0) then
-				self.item.data[x+xOffset][y+yOffset].collideN = nsq:isBlockedTo(sq) or nsq:isDoorTo(sq);
-			end
-
-			nsq = cell:getGridSquare(x, y+1, 0);
-			if canSee or nsq:isCanSee(0) then
-				self.item.data[x+xOffset][y+1+yOffset].collideN = sq:isBlockedTo(nsq) or sq:isDoorTo(nsq);
-			end
-
-			nsq = cell:getGridSquare(x-1, y, 0);
-			if canSee or nsq:isCanSee(0) then
-				self.item.data[x+xOffset][y+yOffset].collideW = nsq:isBlockedTo(sq) or nsq:isDoorTo(sq);
-			end
-
-			nsq = cell:getGridSquare(x+1, y, 0);
-			if canSee or nsq:isCanSee(0) then
-				self.item.data[x+1+xOffset][y+yOffset].collideW = sq:isBlockedTo(nsq) or sq:isDoorTo(nsq);
-			end
-
-			if canSee then
-				self.item.data[x+xOffset][y+yOffset].seen = true;
-				self.item.data[x+xOffset][y+yOffset].drawnBy = getSpecificPlayer(0):getForname().." "..getSpecificPlayer(0):getSurname();
-				self.item.data[x+xOffset][y+yOffset].fake = self.drawFakeMap;
-
-				local objects = sq:getObjects();
-				for k=0,objects:size()-1 do
-					local it = objects:get(k);
-					if bcUtils.isStove(it) then
-						print(x.."x"..y..": Stove")
-						self.item.data[x+xOffset][y+yOffset].draw = "stove";
-					elseif bcUtils.isWindow(it) then
-						print(x.."x"..y..": Window")
-						self.item.data[x+xOffset][y+yOffset].draw = "window";
-					elseif bcUtils.isDoor(it) then
-						print(x.."x"..y..": Door")
-						self.item.data[x+xOffset][y+yOffset].draw = "door";
-						if it.north then
-							self.item.data[x+xOffset][y+yOffset].collideN = true;
-							self.item.data[x+xOffset][y+yOffset].doorDirection = "north";
-						else
-							self.item.data[x+xOffset][y+yOffset].collideW = true;
-							self.item.data[x+xOffset][y+yOffset].doorDirection = "west";
-						end
-					elseif bcUtils.isTree(it) then
-						print(x.."x"..y..": Tree")
-						self.item.data[x+xOffset][y+yOffset].draw = "tree";
-					elseif bcUtils.isContainer(it) then
-						print(x.."x"..y..": Container: "..tostring(it:getContainer():getType()))
-						self.item.data[x+xOffset][y+yOffset].draw = "container";
-						self.item.data[x+xOffset][y+yOffset].desc = tostring(it:getContainer():getType());
-					else
-						--print(x.."x"..y..": Item #"..(k+1)..": "..tostring(it:getName()).."/"..tostring(it:getTextureName()));
-						self.item.data[x+xOffset][y+yOffset].draw = "unknown";
-					end
-				end
+			elseif bcUtils.isTree(it) then
+				print(x.."x"..y..": Tree")
+				data[x+xOffset][y+yOffset].draw = "tree";
+			elseif bcUtils.isContainer(it) then
+				print(x.."x"..y..": Container: "..tostring(it:getContainer():getType()))
+				data[x+xOffset][y+yOffset].draw = "container";
+				data[x+xOffset][y+yOffset].desc = tostring(it:getContainer():getType());
+			else
+				--print(x.."x"..y..": Item #"..(k+1)..": "..tostring(it:getName()).."/"..tostring(it:getTextureName()));
+				data[x+xOffset][y+yOffset].draw = "unknown";
 			end
 		end
 	end
@@ -330,8 +349,8 @@ end
 -- }}}
 
 function BCMapWindow:renderMap() -- {{{
-	local data = self.parent.data;
-	if not data then return end;
+	local data = BCMapMod.getDataFromModData(self.parent.item);
+	if bcUtils.tableIsEmpty(data) then return end;
 
 	local xPlayer = self.parent.x;
 	local yPlayer = self.parent.y;
@@ -400,20 +419,52 @@ function BCMapWindow:new (x, y, width, height, item) -- {{{
 end
 -- }}}
 
-function BCMapModCreateWindow()
-	local m = BCMapWindow:new(50, 50, getCore():getScreenWidth() - 100, getCore():getScreenHeight() - 100);
+BCMapMod = {};
+
+function BCMapMod.createWindow(item) -- {{{
+	local m = BCMapWindow:new(50, 50, getCore():getScreenWidth() - 100, getCore():getScreenHeight() - 100, item);
 	m:setVisible(true);
 	m:addToUIManager();
 
-	bcUtils.MapWindow = m;
+	BCMapMod.MapWindow = m;
 end
+-- }}}
+
+function BCMapMod.cheatGetMap(player) -- {{{
+	getSpecificPlayer(player):getInventory():AddItem("BCMapMod.Map");
+end
+-- }}}
+
+function BCMapMod.createInventoryMenu(player, context, items) -- {{{
+	item = items[1];
+	if not instanceof(item, "InventoryItem") then
+		item = item.items[1];
+	end
+	if item == nil then return end;
+
+	if item:getFullType() == "BCMapMod.Map" then
+		context:addOption("Open Map", item, BCMapMod.createWindow);
+	else
+		context:addOption("Cheat: Get Map", player, BCMapMod.cheatGetMap);
+	end
+end
+-- }}}
+
+function BCMapMod.getDataFromModData(item) -- {{{
+	local md = item:getModData();
+	if not md["BCMapMod"] then
+		md["BCMapMod"] = {};
+	end
+	return md["BCMapMod"];
+end
+-- }}}
 
 function BCMapModPlayerMove() -- {{{
 	local player = getSpecificPlayer(0);
 
 	if player:IsRunning() then 
-		if bcUtils.MapWindow then
-			bcUtils.MapWindow.locationKnown = false;
+		if BCMapMod.MapWindow then
+			BCMapMod.MapWindow.locationKnown = false;
 		end
 		return;
 	end -- No drawing maps when you're running around
@@ -430,13 +481,15 @@ function BCMapModPlayerMove() -- {{{
 	if bcUtils:isMap(primary) and bcUtils:isPenOrPencil(secondary) then
 		primary:drawSurroundings(math.floor(player:getX()), math.floor(player:getY()), (2 --[[ + player:getTrait(Trait.Cartographer) ]]) * 2);
 	else
-		if bcUtils.MapWindow then
-			bcUtils.MapWindow.locationKnown = false;
+		if BCMapMod.MapWindow then
+			BCMapMod.MapWindow.locationKnown = false;
 			-- Walking around without looking at the map, you'll get lost
 		end
 	end
 end
 -- }}}
 
-Events.OnGameStart.Add(BCMapModCreateWindow);
+-- Events.OnGameStart.Add(BCMapMod.createWindow);
+Events.OnFillInventoryObjectContextMenu.Add(BCMapMod.createInventoryMenu);
+
 -- Events.OnPlayerMove.Add(BCMapModPlayerMove);
