@@ -53,10 +53,12 @@ bcUtils.isContainer = function(o) -- {{{
 end
 -- }}}
 bcUtils.isPenOrPencil = function(o) -- {{{
+	if not o then return false end;
 	return o:getFullType() == "Base.Pen" or o:getFullType() == "Base.Pencil";
 end
 -- }}}
 bcUtils.isMap = function(o) -- {{{
+	if not o then return false end;
 	return o:getFullType() == "BCMapMod.Map";
 end
 -- }}}
@@ -65,6 +67,10 @@ bcUtils.tableIsEmpty = function(o) -- {{{
 		return false
 	end
 	return true
+end
+-- }}}
+bcUtils.realDist = function(x1, y1, x2, y2) -- {{{
+	return math.floor(math.sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2)))
 end
 -- }}}
 
@@ -145,7 +151,7 @@ function BCMapWindow:createChildren() -- {{{
 	self.renderPanel.onMouseMoveOutside = BCMapWindow.onMapMouseMove;
 	self:addChild(self.renderPanel);
 
-	self.drawMapButton = ISButton:new(0, 16, 100, 32, "Draw map", self, self.drawMap);
+	self.drawMapButton = ISButton:new(0, 16, 100, 32, "Draw map", self, self.drawMap, 10);
 	self.drawMapButton:initialise();
 	self.drawMapButton:setAnchorLeft(true);
 	self.drawMapButton:setAnchorTop(true);
@@ -238,13 +244,13 @@ function BCMapWindow:changeZoom(change) -- {{{
 end
 -- }}}
 
-function BCMapWindow:drawMap() -- {{{
+function BCMapWindow:drawSurroundings(range) -- {{{
 	local player   = getSpecificPlayer(0);
 	local cell     = getCell();
 	local chunkMap = cell:getChunkMap(0);
 	local xPlayer  = math.floor(player:getX());
 	local yPlayer  = math.floor(player:getY());
-	local range    = 10 --[[ * (1+player:getTrait(Trait.Cartographer)) ]];
+	range = range --[[ + (1+player:getTrait(Trait.Cartographer)) ]];
 
 	local data = BCMapMod.getDataFromModData(self.item);
 
@@ -259,7 +265,9 @@ function BCMapWindow:drawMap() -- {{{
 
 	for x=xPlayer-range,xPlayer+range do
 		for y=yPlayer-range,yPlayer+range do
-			self:drawSquare(x, y);
+			if bcUtils.realDist(xPlayer, yPlayer, x, y) <= range then
+				self:drawSquare(x, y);
+			end
 		end
 	end
 
@@ -319,13 +327,13 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 			elseif bcUtils.isDoor(it) then
 				print(x.."x"..y..": Door")
 				data[x][y].draw = "door";
-				if it.north then
-					data[x][y].collideN = true;
+				-- if it.north then
+					-- data[x][y].collideN = true;
 					-- data[x][y].doorDirection = "north";
-				else
-					data[x][y].collideW = true;
+				-- else
+					-- data[x][y].collideW = true;
 					-- data[x][y].doorDirection = "west";
-				end
+				-- end
 			elseif bcUtils.isTree(it) then
 				print(x.."x"..y..": Tree")
 				data[x][y].draw = "tree";
@@ -444,31 +452,28 @@ function BCMapMod.getDataFromModData(item) -- {{{
 end
 -- }}}
 function BCMapMod.onPlayerMove() -- {{{
+	if not BCMapMod.MapWindow then return end
+
 	local player = getSpecificPlayer(0);
 
 	if player:IsRunning() then 
 		if BCMapMod.MapWindow then
-			BCMapMod.MapWindow.locationKnown = false;
+			BCMapMod.MapWindow:removeFromUIManager();
 		end
 		return;
-	end -- No drawing maps when you're running around
+	end -- No drawing or checking maps when you're running around
 
 	local primary = player:getPrimaryHandItem();
 	local secondary = player:getSecondaryHandItem();
 
-	if bcUtils:isMap(secondary) then
+	if bcUtils.isMap(secondary) then
 		swap = primary;
 		primary = secondary;
 		secondary = swap;
 	end
 
-	if bcUtils:isMap(primary) and bcUtils:isPenOrPencil(secondary) then
-		primary:drawSurroundings(math.floor(player:getX()), math.floor(player:getY()), (2 --[[ + player:getTrait(Trait.Cartographer) ]]) * 2);
-	else
-		if BCMapMod.MapWindow then
-			BCMapMod.MapWindow.locationKnown = false;
-			-- Walking around without looking at the map, you'll get lost
-		end
+	if bcUtils.isMap(primary) and bcUtils.isPenOrPencil(secondary) then
+		BCMapMod.MapWindow:drawSurroundings(3);
 	end
 end
 -- }}}
@@ -476,4 +481,4 @@ end
 -- Events.OnGameStart.Add(BCMapMod.createWindow);
 Events.OnFillInventoryObjectContextMenu.Add(BCMapMod.createInventoryMenu);
 
--- Events.OnPlayerMove.Add(BCMapMod.onPlayerMove);
+Events.OnPlayerMove.Add(BCMapMod.onPlayerMove);
