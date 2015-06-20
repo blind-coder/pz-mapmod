@@ -151,7 +151,7 @@ function BCMapWindow:createChildren() -- {{{
 	self.renderPanel.onMouseMoveOutside = BCMapWindow.onMapMouseMove;
 	self:addChild(self.renderPanel);
 
-	self.drawMapButton = ISButton:new(0, 16, 100, 32, "Draw map", self, self.drawMap, 10);
+	self.drawMapButton = ISButton:new(0, 16, 100, 32, "Draw map", self, self.drawMap);
 	self.drawMapButton:initialise();
 	self.drawMapButton:setAnchorLeft(true);
 	self.drawMapButton:setAnchorTop(true);
@@ -244,6 +244,10 @@ function BCMapWindow:changeZoom(change) -- {{{
 end
 -- }}}
 
+function BCMapWindow:drawMap() --{{{
+	BCMapMod.MapWindow:drawSurroundings(10);
+end
+-- }}}
 function BCMapWindow:drawSurroundings(range) -- {{{
 	local player   = getSpecificPlayer(0);
 	local cell     = getCell();
