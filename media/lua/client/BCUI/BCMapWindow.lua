@@ -69,10 +69,55 @@ bcUtils.tableIsEmpty = function(o) -- {{{
 	return true
 end
 -- }}}
+bcUtils.isStreet = function(o) -- {{{
+	if not o then return false end
+	return luautils.stringStarts(o:getTextureName(), "blends_street");
+end
+-- }}}
+bcUtils.hasStreet = function(o) -- {{{
+	if not o then return false end
+	local objects = o:getObjects();
+	for k=0,objects:size()-1 do
+		local it = objects:get(k);
+		if bcUtils.isStreet(it) then
+			return true;
+		end
+	end
+	return false
+end
+-- }}}
+bcUtils.isDirtRoad = function(o) -- {{{
+	if not o then return false end
+	if luautils.stringStarts(o:getTextureName(), "blends_natural") then
+		local m = bcUtils.split(o:getTextureName(), "_");
+		return m[3] == "01" and tonumber(m[4]) <= 7;
+	end
+	return false
+end
+-- }}}
+bcUtils.hasDirtRoad = function(o) -- {{{
+	if not o then return false end
+	local objects = o:getObjects();
+	for k=0,objects:size()-1 do
+		local it = objects:get(k);
+		if bcUtils.isDirtRoad(it) then
+			return true;
+		end
+	end
+	return false
+end
+-- }}}
 bcUtils.realDist = function(x1, y1, x2, y2) -- {{{
 	return math.floor(math.sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2)))
 end
 -- }}}
+bcUtils.split = function(string, sep)
+	sep = sep or ":";
+	local pattern = string.format("([^%s]+)", sep);
+	local fields = {};
+	string:gsub(pattern, function(c) fields[#fields+1] = c end);
+	return fields
+end
 
 BCMapWindow = ISCollapsableWindow:derive("BCMapWindow");
 
@@ -322,7 +367,21 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 		local objects = sq:getObjects();
 		for k=0,objects:size()-1 do
 			local it = objects:get(k);
-			if bcUtils.isStove(it) then
+			if bcUtils.isStreet(it) then
+				data[x][y].draw = "street";
+				data[x][y].street = {};
+				data[x][y].street.left = bcUtils.hasStreet(cell:getGridSquare(x-1, y, 0));
+				data[x][y].street.right = bcUtils.hasStreet(cell:getGridSquare(x+1, y, 0));
+				data[x][y].street.up = bcUtils.hasStreet(cell:getGridSquare(x-1, y, 0));
+				data[x][y].street.down = bcUtils.hasStreet(cell:getGridSquare(x+1, y, 0));
+			elseif bcUtils.isDirtRoad(it) then
+				data[x][y].draw = "dirtroad";
+				data[x][y].street = {};
+				data[x][y].street.left = bcUtils.hasDirtRoad(cell:getGridSquare(x-1, y, 0));
+				data[x][y].street.right = bcUtils.hasDirtRoad(cell:getGridSquare(x+1, y, 0));
+				data[x][y].street.up = bcUtils.hasDirtRoad(cell:getGridSquare(x-1, y, 0));
+				data[x][y].street.down = bcUtils.hasDirtRoad(cell:getGridSquare(x+1, y, 0));
+			elseif bcUtils.isStove(it) then
 				print(x.."x"..y..": Stove")
 				data[x][y].draw = "stove";
 			elseif bcUtils.isWindow(it) then
@@ -393,6 +452,14 @@ function BCMapWindow:renderMap() -- {{{
 					if data[x][y].desc and data[x][y].draw == "container" then
 						local offy = getTextManager():MeasureStringY(UIFont.Small, data[x][y].desc);
 						self:drawText(data[x][y].desc, rW*gx, rH * (gy + 1) - (offy + 2), 0.9, 0.863, 0.964, alpha, UIFont.Small);
+					end
+					if data[x][y].draw == "street" then
+						local dir = data[x][y].street;
+						self:drawRect(rW * gx, rH * gy, rW, rH, alpha, 0.8, 0.8, 0.8);
+					end
+					if data[x][y].draw == "dirtroad" then
+						local dir = data[x][y].street;
+						self:drawRect(rW * gx, rH * gy, rW, rH, alpha, 0.4, 0.4, 0.4);
 					end
 
 				end
