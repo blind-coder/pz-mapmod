@@ -2,4 +2,4 @@ name=blindcoders Map Mod
 poster=empty.png
 description=Create your own in-game map. This is NOT a radar-map!
 id=bcMapMod
-tiledef=bcMapMod 833
+pack=bcMapMod

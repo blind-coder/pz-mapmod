@@ -7,17 +7,20 @@ require "ISUI/ISCollapsableWindow"
 --     [y] = { -- yCoordinates of map, absolute
 --       seen = true|false -- tile has been seen
 --       drawnBy = <string> -- "forename surname" of drawer, used internally
---       collideN = true|false -- has a wall on the north side
---       collideW = true|false -- has a wall on the west side
---       draw = <string> -- what object to draw at this tile
---       desc = <string> -- description of tile, WIP
---       street = {
---         left = true|false
---         right = true|false
---         up = true|false
---         down = true|fals   -- whether there's another street tile in
---                               given direction. WIP
---       }
+--       draw = [ -- array of stuff to draw
+--         collideN = true|false -- has a wall on the north side
+--         collideW = true|false -- has a wall on the west side
+--         draw = <string> -- what object to draw at this tile
+--         desc = <string> -- description of tile, WIP
+--         color = { r = 0..1, g = 0..1, b = 0..1, a = 0..1} -- color to pass to drawTextureScaled
+--         street = {
+--           left = true|false
+--           right = true|false
+--           up = true|false
+--           down = true|fals   -- whether there's another street tile in
+--                                 given direction. WIP
+--         }
+--       ]
 --     }
 --   }
 
@@ -88,8 +91,42 @@ bcUtils.tableIsEmpty = function(o) -- {{{
 	return true
 end
 -- }}}
+bcUtils.tableIsEqual = function(tbl1, tbl2) -- {{{
+	for k,v in pairs(tbl1) do
+		if type(v) == "table" and type(tbl2[k]) == "table" then
+			if not bcUtils.tableIsEqual(v, tbl2[k]) then return false end
+		else
+			if v ~= tbl2[k] then return false end
+		end
+	end
+	for k,v in pairs(tbl2) do
+		if type(v) == "table" and type(tbl1[k]) == "table" then
+			if not bcUtils.tableIsEqual(v, tbl1[k]) then return false end
+		else
+			if v ~= tbl1[k] then return false end
+		end
+	end
+	return true
+end
+-- }}}
+function bcUtils.cloneTable(orig) -- {{{
+	local orig_type = type(orig)
+	local copy
+	if orig_type == 'table' then
+		copy = {}
+		for orig_key,orig_value in pairs(orig) do
+			copy[orig_key] = bcUtils.cloneTable(orig_value)
+		end
+		setmetatable(copy, bcUtils.cloneTable(getmetatable(orig)))
+	else -- number, string, boolean, etc
+		copy = orig
+	end
+	return copy
+end
+-- }}}
 bcUtils.isStreet = function(o) -- {{{
 	if not o then return false end
+	if not o:getTextureName() then return false end
 	return luautils.stringStarts(o:getTextureName(), "blends_street");
 end
 -- }}}
@@ -107,6 +144,7 @@ end
 -- }}}
 bcUtils.isDirtRoad = function(o) -- {{{
 	if not o then return false end
+	if not o:getTextureName() then return false end
 	if luautils.stringStarts(o:getTextureName(), "blends_natural") then
 		local m = bcUtils.split(o:getTextureName(), "_");
 		return m[3] == "01" and tonumber(m[4]) <= 7;
@@ -351,34 +389,13 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 	local cell = getCell();
 
 	for x2=x-1,x+1 do
-		if not data[x2] then data[x2] = {}; end
+		if not data[x2] then data[x2] = {seen = false, drawnBy = "", draw = {}}; end
 		for y2=y-1,y+1 do
-			if not data[x2][y2] then data[x2][y2] = {}; end
+			if not data[x2][y2] then data[x2][y2] = {seen = false, drawnBy = "", draw = {}}; end
 		end
 	end
 	local sq = cell:getGridSquare(x, y, 0);
 	local canSee = sq:isCanSee(0);
-
-	local nsq;
-	nsq = cell:getGridSquare(x, y-1, 0);
-	if canSee or nsq:isCanSee(0) then
-		data[x][y].collideN = nsq:isBlockedTo(sq) or nsq:isDoorTo(sq);
-	end
-
-	nsq = cell:getGridSquare(x, y+1, 0);
-	if canSee or nsq:isCanSee(0) then
-		data[x][y+1].collideN = sq:isBlockedTo(nsq) or sq:isDoorTo(nsq);
-	end
-
-	nsq = cell:getGridSquare(x-1, y, 0);
-	if canSee or nsq:isCanSee(0) then
-		data[x][y].collideW = nsq:isBlockedTo(sq) or nsq:isDoorTo(sq);
-	end
-
-	nsq = cell:getGridSquare(x+1, y, 0);
-	if canSee or nsq:isCanSee(0) then
-		data[x+1][y].collideW = sq:isBlockedTo(nsq) or sq:isDoorTo(nsq);
-	end
 
 	if canSee then
 		data[x][y].seen = true;
@@ -386,48 +403,94 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 
 		local objects = sq:getObjects();
 		for k=0,objects:size()-1 do
+			local doAdd = false;
+			local newDraw = BCMapMod.newDrawElement();
 			local it = objects:get(k);
 			if bcUtils.isStreet(it) then
-				data[x][y].draw = "street";
-				data[x][y].street = {};
-				data[x][y].street.left = bcUtils.hasStreet(cell:getGridSquare(x-1, y, 0));
-				data[x][y].street.right = bcUtils.hasStreet(cell:getGridSquare(x+1, y, 0));
-				data[x][y].street.up = bcUtils.hasStreet(cell:getGridSquare(x-1, y, 0));
-				data[x][y].street.down = bcUtils.hasStreet(cell:getGridSquare(x+1, y, 0));
+				newDraw.draw = "street";
+				newDraw.street = {};
+				newDraw.street.left = bcUtils.hasStreet(cell:getGridSquare(x-1, y, 0));
+				newDraw.street.right = bcUtils.hasStreet(cell:getGridSquare(x+1, y, 0));
+				newDraw.street.up = bcUtils.hasStreet(cell:getGridSquare(x-1, y, 0));
+				newDraw.street.down = bcUtils.hasStreet(cell:getGridSquare(x+1, y, 0));
+				doAdd = true;
 			elseif bcUtils.isDirtRoad(it) then
-				data[x][y].draw = "dirtroad";
-				data[x][y].street = {};
-				data[x][y].street.left = bcUtils.hasDirtRoad(cell:getGridSquare(x-1, y, 0));
-				data[x][y].street.right = bcUtils.hasDirtRoad(cell:getGridSquare(x+1, y, 0));
-				data[x][y].street.up = bcUtils.hasDirtRoad(cell:getGridSquare(x-1, y, 0));
-				data[x][y].street.down = bcUtils.hasDirtRoad(cell:getGridSquare(x+1, y, 0));
+				newDraw.draw = "dirtroad";
+				newDraw.street = {};
+				newDraw.street.left = bcUtils.hasDirtRoad(cell:getGridSquare(x-1, y, 0));
+				newDraw.street.right = bcUtils.hasDirtRoad(cell:getGridSquare(x+1, y, 0));
+				newDraw.street.up = bcUtils.hasDirtRoad(cell:getGridSquare(x-1, y, 0));
+				newDraw.street.down = bcUtils.hasDirtRoad(cell:getGridSquare(x+1, y, 0));
+				doAdd = true;
 			elseif bcUtils.isStove(it) then
-				print(x.."x"..y..": Stove")
-				data[x][y].draw = "stove";
+				newDraw.draw = "stove";
+				doAdd = true;
 			elseif bcUtils.isWindow(it) then
-				print(x.."x"..y..": Window")
-				data[x][y].draw = "window";
+				newDraw.draw = "window";
+				doAdd = true;
 			elseif bcUtils.isDoor(it) then
-				print(x.."x"..y..": Door")
-				data[x][y].draw = "door";
-				-- if it.north then
-					-- data[x][y].collideN = true;
-					-- data[x][y].doorDirection = "north";
-				-- else
-					-- data[x][y].collideW = true;
-					-- data[x][y].doorDirection = "west";
-				-- end
+				newDraw.draw = "door";
+				if it.north then
+					newDraw.collideN = true;
+				else
+					newDraw.collideW = true;
+				end
+				doAdd = true;
 			elseif bcUtils.isTree(it) then
-				print(x.."x"..y..": Tree")
-				data[x][y].draw = "tree";
+				newDraw.draw = "tree";
+				doAdd = true;
 			elseif bcUtils.isContainer(it) then
-				print(x.."x"..y..": Container: "..tostring(it:getContainer():getType()))
-				data[x][y].draw = "container";
-				data[x][y].desc = tostring(it:getContainer():getType());
+				newDraw.draw = "container";
+				newDraw.desc = tostring(it:getContainer():getType());
+				doAdd = true;
 			else
 				--print(x.."x"..y..": Item #"..(k+1)..": "..tostring(it:getName()).."/"..tostring(it:getTextureName()));
-				data[x][y].draw = "unknown";
+				newDraw.draw = "unknown";
 			end
+			if doAdd then
+				BCMapMod.insertDrawData(data[x][y].draw, newDraw);
+			end
+		end
+	end
+
+	local nsq;
+	nsq = cell:getGridSquare(x, y-1, 0);
+	if canSee or nsq:isCanSee(0) then
+		if nsq:isBlockedTo(sq) then
+			local newDraw = BCMapMod.newDrawElement();
+			newDraw.collideN = true;
+			newDraw.draw = "wall";
+			BCMapMod.insertDrawData(data[x][y].draw, newDraw);
+		end
+	end
+
+	nsq = cell:getGridSquare(x, y+1, 0);
+	if canSee or nsq:isCanSee(0) then
+		if sq:isBlockedTo(nsq) then
+			local newDraw = BCMapMod.newDrawElement();
+			newDraw.collideN = true;
+			newDraw.draw = "wall";
+			BCMapMod.insertDrawData(data[x][y+1].draw, newDraw);
+		end
+	end
+
+	nsq = cell:getGridSquare(x-1, y, 0);
+	if canSee or nsq:isCanSee(0) then
+		if nsq:isBlockedTo(sq) then
+			local newDraw = BCMapMod.newDrawElement();
+			newDraw.collideW = true;
+			newDraw.draw = "wall";
+			BCMapMod.insertDrawData(data[x][y].draw, newDraw);
+		end
+	end
+
+	nsq = cell:getGridSquare(x+1, y, 0);
+	if canSee or nsq:isCanSee(0) then
+		if sq:isBlockedTo(nsq) then
+			local newDraw = BCMapMod.newDrawElement();
+			newDraw.collideN = true;
+			newDraw.draw = "wall";
+			BCMapMod.insertDrawData(data[x+1][y].draw, newDraw);
 		end
 	end
 end
@@ -455,33 +518,43 @@ function BCMapWindow:renderMap() -- {{{
 				end
 
 				if data[x][y] then
-					local alpha = 1.0;
-
-					--[[
 					if data[x][y].seen then
-						self:drawRectBorder(rW * gx, rH * gy, rW, rH, alpha, 0.8, 0.8, 0.8);
-					end
-					--]]
-
-					if data[x][y].collideN then
-						self:drawRect(rW * gx, rH * gy, rW, 4, alpha, 0.9, 0.163, 0.064);
-					end
-					if data[x][y].collideW then
-						self:drawRect(rW * gx, rH * gy, 4, rH, alpha, 0.9, 0.163, 0.064);
-					end
-					if data[x][y].desc and data[x][y].draw == "container" then
-						local offy = getTextManager():MeasureStringY(UIFont.Small, data[x][y].desc);
-						self:drawText(data[x][y].desc, rW*gx, rH * (gy + 1) - (offy + 2), 0.9, 0.863, 0.964, alpha, UIFont.Small);
-					end
-					if data[x][y].draw == "street" then
-						local dir = data[x][y].street;
-						self:drawRect(rW * gx, rH * gy, rW, rH, alpha, 0.8, 0.8, 0.8);
-					end
-					if data[x][y].draw == "dirtroad" then
-						local dir = data[x][y].street;
-						self:drawRect(rW * gx, rH * gy, rW, rH, alpha, 0.4, 0.4, 0.4);
+						self:drawTextureScaled(getTexture("Map_BaseTile"), rW * gx, rH * gy, rW, rH, 1, 1, 1, 1);
 					end
 
+					if not bcUtils.tableIsEmpty(data[x][y].draw) then
+						for _,drawElement in pairs(data[x][y].draw) do
+							local c = drawElement.color;
+
+							if drawElement.draw == "wall" then
+								if drawElement.collideN then
+									--self:drawRect(rW * gx, rH * gy, rW, 4, alpha, 0.9, 0.163, 0.064);
+									self:drawTextureScaled(getTexture("Map_WallW"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+								end
+								if drawElement.collideW then
+									--self:drawRect(rW * gx, rH * gy, 4, rH, alpha, 0.9, 0.163, 0.064);
+									self:drawTextureScaled(getTexture("Map_WallN"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+								end
+							end
+
+							if drawElement.desc and drawElement.draw == "container" then
+								--local offy = getTextManager():MeasureStringY(UIFont.Small, drawElement.desc);
+								--self:drawText(drawElement.desc, rW*gx, rH * (gy + 1) - (offy + 2), 0.9, 0.863, 0.964, alpha, UIFont.Small);
+								self:drawTextureScaled(getTexture("Map_Container"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+							end
+							if drawElement.draw == "street" then
+								--local dir = drawElement.street;
+								--self:drawRect(rW * gx, rH * gy, rW, rH, alpha, 0.8, 0.8, 0.8);
+								self:drawTextureScaled(getTexture("Map_Street"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+							end
+							if drawElement.draw == "dirtroad" then
+								--local dir = drawElement.street;
+								--self:drawRect(rW * gx, rH * gy, rW, rH, alpha, 0.4, 0.4, 0.4);
+								self:drawTextureScaled(getTexture("Map_DirtRoad"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+							end
+
+						end
+					end
 				end
 				gy = gy + 1;
 			end
@@ -542,6 +615,34 @@ function BCMapMod.getDataFromModData(item) -- {{{
 	return md["BCMapMod"];
 end
 -- }}}
+function BCMapMod.newDrawElement() -- {{{
+	return {
+		collideN = false,
+		collideW = false,
+		draw = "",
+		desc = "",
+		color = { r = 0.6, g = 0.6, b = 0.6, a = 1.0 },
+		street = {
+			left = false,
+			right = false,
+			up = false,
+			down = false
+		}
+	};
+end
+-- }}}
+function BCMapMod.insertDrawData(tbl, el) -- {{{
+	-- make sure every element exists only once
+	local c1 = bcUtils.cloneTable(el);
+	c1.color = nil;
+	for k,v in pairs(tbl) do
+		local c2 = bcUtils.cloneTable(v);
+		c2.color = nil;
+		if bcUtils.tableIsEqual(c1, c2) then return end
+	end
+	table.insert(tbl, el);
+end
+-- }}}
 function BCMapMod.onPlayerMove() -- {{{
 	if not BCMapMod.MapWindow then return end
 
@@ -569,7 +670,6 @@ function BCMapMod.onPlayerMove() -- {{{
 end
 -- }}}
 
--- Events.OnGameStart.Add(BCMapMod.createWindow);
 Events.OnFillInventoryObjectContextMenu.Add(BCMapMod.createInventoryMenu);
 
 Events.OnPlayerMove.Add(BCMapMod.onPlayerMove);
