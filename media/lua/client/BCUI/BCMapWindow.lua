@@ -1,6 +1,25 @@
 require "ISUI/ISCollapsableWindow"
 
 -- ISBuildMenu.cheat = true;
+-- ModData used:
+-- getModData()["BCMapMod"] = {
+--   [x] = { -- xCoordinates of map, absolute
+--     [y] = { -- yCoordinates of map, absolute
+--       seen = true|false -- tile has been seen
+--       drawnBy = <string> -- "forename surname" of drawer, used internally
+--       collideN = true|false -- has a wall on the north side
+--       collideW = true|false -- has a wall on the west side
+--       draw = <string> -- what object to draw at this tile
+--       desc = <string> -- description of tile, WIP
+--       street = {
+--         left = true|false
+--         right = true|false
+--         up = true|false
+--         down = true|fals   -- whether there's another street tile in
+--                               given direction. WIP
+--       }
+--     }
+--   }
 
 local bcUtils = {};
 bcUtils.dump = function(o, lvl) -- {{{ Small function to dump an object.
