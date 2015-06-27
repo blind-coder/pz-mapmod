@@ -534,7 +534,7 @@ function BCMapWindow:renderMap() -- {{{
 								end
 								if drawElement.collideW then
 									--self:drawRect(rW * gx, rH * gy, 4, rH, alpha, 0.9, 0.163, 0.064);
-									self:drawTextureScaled(getTexture("Map_WallN"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+									self:drawTextureScaled(getTexture("Map_WallN"), rW * gx, rH * gy, 10, rH, c.a, c.r, c.g, c.b);
 								end
 							end
 
