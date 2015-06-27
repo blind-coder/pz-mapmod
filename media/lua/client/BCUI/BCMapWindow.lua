@@ -311,6 +311,7 @@ function BCMapWindow:findLocation() -- {{{
 					self.y = yPlayer;
 					self.xPlayer = xPlayer;
 					self.yPlayer = yPlayer;
+					return;
 				end
 			end
 		end
