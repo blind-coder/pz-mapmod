@@ -489,7 +489,7 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 	if canSee or nsq:isCanSee(0) then
 		if sq:isBlockedTo(nsq) then
 			local newDraw = BCMapMod.newDrawElement();
-			newDraw.collideN = true;
+			newDraw.collideW = true;
 			newDraw.draw = "wall";
 			BCMapMod.insertDrawData(data[x+1][y].draw, newDraw);
 		end
