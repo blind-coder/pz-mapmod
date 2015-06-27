@@ -430,8 +430,9 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 				newDraw.draw = "window";
 				doAdd = true;
 			elseif bcUtils.isDoor(it) then
+				local nsq = cell:getGridSquare(x, y-1, 0);
 				newDraw.draw = "door";
-				if it.north then
+				if sq:isDoorTo(nsq) then
 					newDraw.collideN = true;
 				else
 					newDraw.collideW = true;
@@ -528,30 +529,31 @@ function BCMapWindow:renderMap() -- {{{
 							local c = drawElement.color;
 
 							if drawElement.draw == "wall" then
-								if drawElement.collideN then
-									--self:drawRect(rW * gx, rH * gy, rW, 4, alpha, 0.9, 0.163, 0.064);
+								if drawElement.collideN and drawElement.collideW then
+									self:drawTextureScaled(getTexture("Map_WallNW"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+								elseif drawElement.collideN then
+									self:drawTextureScaled(getTexture("Map_WallN"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+								elseif drawElement.collideW then
 									self:drawTextureScaled(getTexture("Map_WallW"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
-								end
-								if drawElement.collideW then
-									--self:drawRect(rW * gx, rH * gy, 4, rH, alpha, 0.9, 0.163, 0.064);
-									self:drawTextureScaled(getTexture("Map_WallN"), rW * gx, rH * gy, 10, rH, c.a, c.r, c.g, c.b);
 								end
 							end
 
 							if drawElement.desc and drawElement.draw == "container" then
-								--local offy = getTextManager():MeasureStringY(UIFont.Small, drawElement.desc);
-								--self:drawText(drawElement.desc, rW*gx, rH * (gy + 1) - (offy + 2), 0.9, 0.863, 0.964, alpha, UIFont.Small);
 								self:drawTextureScaled(getTexture("Map_Container"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
 							end
 							if drawElement.draw == "street" then
-								--local dir = drawElement.street;
-								--self:drawRect(rW * gx, rH * gy, rW, rH, alpha, 0.8, 0.8, 0.8);
 								self:drawTextureScaled(getTexture("Map_Street"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
 							end
 							if drawElement.draw == "dirtroad" then
-								--local dir = drawElement.street;
-								--self:drawRect(rW * gx, rH * gy, rW, rH, alpha, 0.4, 0.4, 0.4);
 								self:drawTextureScaled(getTexture("Map_DirtRoad"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+							end
+							if drawElement.draw == "door" then
+								if drawElement.collideN then
+									self:drawTextureScaled(getTexture("Map_DoorN"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+								end
+								if drawElement.collideW then
+									self:drawTextureScaled(getTexture("Map_DoorW"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+								end
 							end
 
 						end
