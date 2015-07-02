@@ -3,3 +3,4 @@ poster=empty.png
 description=Create your own in-game map. This is NOT a radar-map!
 id=bcMapMod
 pack=bcMapMod
+require=bcUtils
