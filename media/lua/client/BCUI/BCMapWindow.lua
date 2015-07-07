@@ -357,14 +357,15 @@ function BCMapWindow:renderMap() -- {{{
 	local range = 10 --[[ * self.parent.zoom ]];
 	local rW = 64 / self.parent.zoom;
 	local rH = rW; -- math.min(self.width, self.height) / (range * 2);
-	local xRange = math.floor(self.width/rW);
-	local yRange = math.floor(self.height/rH);
+	local xRange = math.ceil(self.width/rW);
+	local yRange = math.ceil(self.height/rH);
 
 	local gx = 0;
-	for x=self.parent.xloc - math.floor(xRange / 2),self.parent.xloc + math.floor(xRange / 2) - 1 do
+	self:setStencilRect(0, 0, self.width, self.height);
+	for x=self.parent.xloc - math.floor(xRange / 2),self.parent.xloc + math.ceil(xRange / 2) do
 		if data[x] then
 			local gy = 0;
-			for y=self.parent.yloc - math.floor(yRange / 2),self.parent.yloc + math.floor(yRange / 2) - 1 do
+			for y=self.parent.yloc - math.floor(yRange / 2),self.parent.yloc + math.ceil(yRange / 2) do
 				if self.parent.locationKnown and x == self.parent.xPlayer and y == self.parent.yPlayer then
 					self:drawRect(rW * gx, rH * gy, rW, rH, 1.0, 0.3, 0, 0);
 				end
@@ -414,6 +415,7 @@ function BCMapWindow:renderMap() -- {{{
 		end
 		gx = gx + 1;
 	end
+	self:clearStencilRect();
 end
 -- }}}
 function BCMapWindow:new (x, y, width, height, item) -- {{{
