@@ -1,4 +1,5 @@
 require "ISUI/ISCollapsableWindow"
+require "bcUtils"
 
 -- ISBuildMenu.cheat = true;
 -- ModData used:
@@ -43,11 +44,11 @@ function BCMapWindow:onMapMouseMove(dx, dy)--{{{
 		self.panx = self.panx + dx;
 		self.pany = self.pany + dy;
 		if math.abs(self.panx) > math.floor(64 / self.parent.zoom) then
-			self.parent.x = self.parent.x - math.floor((self.panx)/math.floor(64 / self.parent.zoom));
+			self.parent.xloc = self.parent.xloc - math.floor((self.panx)/math.floor(64 / self.parent.zoom));
 			self.panx = self.panx % math.floor(64 / self.parent.zoom);
 		end
 		if math.abs(self.pany) > math.floor(64 / self.parent.zoom) then
-			self.parent.y = self.parent.y - math.floor((self.pany)/math.floor(64 / self.parent.zoom));
+			self.parent.yloc = self.parent.yloc - math.floor((self.pany)/math.floor(64 / self.parent.zoom));
 			self.pany = self.pany % math.floor(64 / self.parent.zoom);
 		end
 	end
@@ -139,8 +140,8 @@ function BCMapWindow:findLocation() -- {{{
 	local yPlayer = math.floor(player:getY());
 
 	if self.locationKnown then
-		self.x = xPlayer;
-		self.y = yPlayer;
+		self.xloc = xPlayer;
+		self.yloc = yPlayer;
 		self.xPlayer = xPlayer;
 		self.yPlayer = yPlayer;
 		return;
@@ -148,14 +149,16 @@ function BCMapWindow:findLocation() -- {{{
 
 	local data = BCMapMod.getDataFromModData(self.item);
 
+	local x;
+	local y;
 	-- Check if we know some place close to us
 	for x=xPlayer-5,xPlayer+5 do
 		if data[x] then
 			for y=yPlayer-5,yPlayer+5 do
 				if data[x][y] then
 					self.locationKnown = true; -- the player has already drawn this part of the map
-					self.x = xPlayer;
-					self.y = yPlayer;
+					self.xloc = xPlayer;
+					self.yloc = yPlayer;
 					self.xPlayer = xPlayer;
 					self.yPlayer = yPlayer;
 					return;
@@ -358,10 +361,10 @@ function BCMapWindow:renderMap() -- {{{
 	local yRange = math.floor(self.height/rH);
 
 	local gx = 0;
-	for x=self.parent.x - math.floor(xRange / 2),self.parent.x + math.floor(xRange / 2) - 1 do
+	for x=self.parent.xloc - math.floor(xRange / 2),self.parent.xloc + math.floor(xRange / 2) - 1 do
 		if data[x] then
 			local gy = 0;
-			for y=self.parent.y - math.floor(yRange / 2),self.parent.y + math.floor(yRange / 2) - 1 do
+			for y=self.parent.yloc - math.floor(yRange / 2),self.parent.yloc + math.floor(yRange / 2) - 1 do
 				if self.parent.locationKnown and x == self.parent.xPlayer and y == self.parent.yPlayer then
 					self:drawRect(rW * gx, rH * gy, rW, rH, 1.0, 0.3, 0, 0);
 				end
@@ -419,8 +422,8 @@ function BCMapWindow:new (x, y, width, height, item) -- {{{
 	setmetatable(o, self)
 	self.__index = self
 	o.backgroundColor = {r=0, g=0, b=0, a=0.7};
-	o.x = 0;
-	o.y = 0;
+	o.xloc = 0;
+	o.yloc = 0;
 	o.zoom = 1;
 	o.locationKnown = false;
 	o.item = item;
