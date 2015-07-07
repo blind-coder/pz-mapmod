@@ -25,6 +25,71 @@ require "bcUtils"
 --     }
 --   }
 
+--[[ TEXTURE WRAPPER --]]
+-- This is necessary to properly render textures that are not
+-- exactly 64x64 pixels in size.
+-- Written by TurboTuTone
+
+TextureWrapper = {};
+function TextureWrapper.new( _texture ) -- {{{
+	local self = {};
+	self.texture = _texture;
+	
+	function self.renderScaled( _uiObject, _x, _y, _zoom, _a, _r, _g, _b ) --uiObject can be lua or java uielement
+		if self.texture and _uiObject then
+			local x,y,w,h = _x+(self.rW - self.W)*_zoom, _y+(self.rH - self.H)*_zoom, self.W*_zoom, self.H*_zoom;
+			_uiObject:drawTextureScaled(self.texture, x, y, w, h, _a, _r, _g, _b);
+		end
+	end
+	
+	local function init()
+		if self.texture then
+			self.sX = _texture:getXStart();
+			self.sY = _texture:getYStart();
+			--self.eX = _texture:getXEnd();
+			--self.eY = _texture:getYEnd();
+			self.W  = _texture:getWidth();
+			self.H  = _texture:getHeight();
+			self.rW = 64; -- _texture:getRealWidth();
+			self.rH = 64; -- _texture:getRealHeight();
+		end
+		return self;
+	end
+	
+	return init();
+end
+-- }}}
+TextureWrapper.init = function() -- {{{
+	local textures = {};
+	table.insert(textures, "Map_BaseTile");
+	table.insert(textures, "Map_DirtRoad");
+	table.insert(textures, "Map_DoorW");
+	table.insert(textures, "Map_FogNE");
+	table.insert(textures, "Map_FogNW");
+	table.insert(textures, "Map_FogSE");
+	table.insert(textures, "Map_FogSW");
+	table.insert(textures, "Map_Street");
+	table.insert(textures, "Map_WallNW");
+	table.insert(textures, "Map_WallW");
+	table.insert(textures, "Map_WindowW");
+	table.insert(textures, "Map_FogN");
+	table.insert(textures, "Map_FogS");
+	table.insert(textures, "Map_TreePine");
+	table.insert(textures, "Map_Container");
+	table.insert(textures, "Map_FogE");
+	table.insert(textures, "Map_FogW");
+	table.insert(textures, "Map_TreeNormal");
+	table.insert(textures, "Map_DoorN");
+	table.insert(textures, "Map_WallN");
+	table.insert(textures, "Map_WindowN");
+	table.insert(textures, "Map_WallStump");
+
+	for _,tex in pairs(textures) do
+		TextureWrapper[tex] = TextureWrapper.new(getTexture(tex));
+	end
+end
+-- }}}
+
 BCMapWindow = ISCollapsableWindow:derive("BCMapWindow");
 
 function BCMapWindow:onMapMouseDown(x, y)--{{{
@@ -280,14 +345,26 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 				newDraw.draw = "window";
 				doAdd = true;
 			elseif bcUtils.isDoor(it) then
-				local nsq = cell:getGridSquare(x, y-1, 0);
 				newDraw.draw = "door";
-				if sq:isDoorTo(nsq) then
-					newDraw.collideN = true;
+				newDraw.collideN = it:getNorth();
+				newDraw.collideW = not it:getNorth();
+				if it:getNorth() then
+					doAdd = it:getNorth();
 				else
-					newDraw.collideW = true;
+					BCMapMod.insertDrawData(data[x-1][y].draw, newDraw);
 				end
-				doAdd = true;
+				--[[if sq:isDoorTo(nsq) or nsq:isDoorTo(sq) then
+					print("door from "..x.."x"..y.." to "..x.."x"..(y-1));
+					newDraw.collideN = true;
+					doAdd = true;
+				end
+				nsq = cell:getGridSquare(x-1, y, 0);
+				if sq:isDoorTo(nsq) or nsq:isDoorTo(sq) then
+					print("door from "..x.."x"..y.." to "..(x-1).."x"..y);
+					newDraw.collideW = true;
+					doAdd = true;
+				end
+				]]
 			elseif bcUtils.isTree(it) then
 				newDraw.draw = "tree";
 				doAdd = true;
@@ -332,7 +409,7 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 			local newDraw = BCMapMod.newDrawElement();
 			newDraw.collideW = true;
 			newDraw.draw = "wall";
-			BCMapMod.insertDrawData(data[x][y].draw, newDraw);
+			BCMapMod.insertDrawData(data[x-1][y].draw, newDraw);
 		end
 	end
 
@@ -342,7 +419,7 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 			local newDraw = BCMapMod.newDrawElement();
 			newDraw.collideW = true;
 			newDraw.draw = "wall";
-			BCMapMod.insertDrawData(data[x+1][y].draw, newDraw);
+			BCMapMod.insertDrawData(data[x][y].draw, newDraw);
 		end
 	end
 end
@@ -372,7 +449,7 @@ function BCMapWindow:renderMap() -- {{{
 
 				if data[x][y] then
 					if data[x][y].seen then
-						self:drawTextureScaled(getTexture("Map_BaseTile"), rW * gx, rH * gy, rW, rH, 1, 1, 1, 1);
+						TextureWrapper["Map_BaseTile"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
 					end
 
 					if not bcUtils.tableIsEmpty(data[x][y].draw) then
@@ -381,29 +458,29 @@ function BCMapWindow:renderMap() -- {{{
 
 							if drawElement.draw == "wall" then
 								if drawElement.collideN and drawElement.collideW then
-									self:drawTextureScaled(getTexture("Map_WallNW"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+									TextureWrapper["Map_WallNW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
 								elseif drawElement.collideN then
-									self:drawTextureScaled(getTexture("Map_WallN"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+									TextureWrapper["Map_WallW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
 								elseif drawElement.collideW then
-									self:drawTextureScaled(getTexture("Map_WallW"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+									TextureWrapper["Map_WallN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
 								end
 							end
 
 							if drawElement.desc and drawElement.draw == "container" then
-								self:drawTextureScaled(getTexture("Map_Container"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+								TextureWrapper["Map_Container"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
 							end
 							if drawElement.draw == "street" then
-								self:drawTextureScaled(getTexture("Map_Street"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+								TextureWrapper["Map_Street"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
 							end
 							if drawElement.draw == "dirtroad" then
-								self:drawTextureScaled(getTexture("Map_DirtRoad"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+								TextureWrapper["Map_DirtRoad"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
 							end
 							if drawElement.draw == "door" then
 								if drawElement.collideN then
-									self:drawTextureScaled(getTexture("Map_DoorN"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+									TextureWrapper["Map_DoorW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
 								end
 								if drawElement.collideW then
-									self:drawTextureScaled(getTexture("Map_DoorW"), rW * gx, rH * gy, rW, rH, c.a, c.r, c.g, c.b);
+									TextureWrapper["Map_DoorN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
 								end
 							end
 
@@ -528,3 +605,4 @@ end
 Events.OnFillInventoryObjectContextMenu.Add(BCMapMod.createInventoryMenu);
 
 Events.OnPlayerMove.Add(BCMapMod.onPlayerMove);
+Events.OnGameStart.Add(TextureWrapper.init);
