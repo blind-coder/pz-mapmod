@@ -37,9 +37,17 @@ function TextureWrapper.new( _texture ) -- {{{
 	
 	function self.renderScaled( _uiObject, _x, _y, _zoom, _a, _r, _g, _b ) --uiObject can be lua or java uielement
 		if self.texture and _uiObject then
-			local x,y,w,h = _x+(self.rW - self.W)*_zoom, _y+(self.rH - self.H)*_zoom, self.W*_zoom, self.H*_zoom;
+			local x,y,w,h = _x+self.oX*_zoom, _y+self.oY*_zoom, self.W*_zoom, self.H*_zoom;
 			_uiObject:drawTextureScaled(self.texture, x, y, w, h, _a, _r, _g, _b);
 		end
+	end
+
+	function self.setOffsetX( _oX )
+		self.oX = _oX;
+	end
+
+	function self.setOffsetY( _oY )
+		self.oY = _oY;
 	end
 	
 	local function init()
@@ -52,7 +60,11 @@ function TextureWrapper.new( _texture ) -- {{{
 			self.H  = _texture:getHeight();
 			self.rW = 64; -- _texture:getRealWidth();
 			self.rH = 64; -- _texture:getRealHeight();
+
+			self.oX = self.rW - self.W; -- X offset to apply
+			self.oY = self.rH - self.H; -- Y offset to apply
 		end
+
 		return self;
 	end
 	
@@ -298,18 +310,23 @@ function BCMapWindow:drawSurroundings(range) -- {{{
 	self.yPlayer = yPlayer;
 end
 -- }}}
+function BCMapWindow:ensureExists(x, y)
+	local data = BCMapMod.getDataFromModData(self.item);
+	if not data[x] then data[x] = {} end
+	if not data[x][y] then data[x][y] = {seen = false, drawnBy = "", draw = {}}; end
+end
 function BCMapWindow:drawSquare(x, y) -- {{{
 	local x2;
 	local y2;
-	local data = BCMapMod.getDataFromModData(self.item);
-	local cell = getCell();
 
 	for x2=x-1,x+1 do
-		if not data[x2] then data[x2] = {seen = false, drawnBy = "", draw = {}}; end
 		for y2=y-1,y+1 do
-			if not data[x2][y2] then data[x2][y2] = {seen = false, drawnBy = "", draw = {}}; end
+			self:ensureExists(x2, y2);
 		end
 	end
+
+	local cell = getCell();
+	local data = BCMapMod.getDataFromModData(self.item);
 	local sq = cell:getGridSquare(x, y, 0);
 	local canSee = sq:isCanSee(0);
 
@@ -393,6 +410,16 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 		end
 	end
 
+	nsq = cell:getGridSquare(x+1, y, 0);
+	if canSee or nsq:isCanSee(0) then
+		if sq:isBlockedTo(nsq) then
+			local newDraw = BCMapMod.newDrawElement();
+			newDraw.collideW = true;
+			newDraw.draw = "wall";
+			BCMapMod.insertDrawData(data[x][y].draw, newDraw);
+		end
+	end
+
 	nsq = cell:getGridSquare(x, y+1, 0);
 	if canSee or nsq:isCanSee(0) then
 		if sq:isBlockedTo(nsq) then
@@ -410,16 +437,6 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 			newDraw.collideW = true;
 			newDraw.draw = "wall";
 			BCMapMod.insertDrawData(data[x-1][y].draw, newDraw);
-		end
-	end
-
-	nsq = cell:getGridSquare(x+1, y, 0);
-	if canSee or nsq:isCanSee(0) then
-		if sq:isBlockedTo(nsq) then
-			local newDraw = BCMapMod.newDrawElement();
-			newDraw.collideW = true;
-			newDraw.draw = "wall";
-			BCMapMod.insertDrawData(data[x][y].draw, newDraw);
 		end
 	end
 end
@@ -452,7 +469,7 @@ function BCMapWindow:renderMap() -- {{{
 						TextureWrapper["Map_BaseTile"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
 					end
 
-					if not bcUtils.tableIsEmpty(data[x][y].draw) then
+					if not bcUtils.tableIsEmpty(data[x][y].draw) then -- {{{
 						for _,drawElement in pairs(data[x][y].draw) do
 							local c = drawElement.color;
 
@@ -485,7 +502,39 @@ function BCMapWindow:renderMap() -- {{{
 							end
 
 						end
-					end
+					end--}}}
+					--{{{
+					self.parent:ensureExists(x, y);
+					self.parent:ensureExists(x, y-1);
+					self.parent:ensureExists(x, y+1);
+					self.parent:ensureExists(x+1, y);
+					self.parent:ensureExists(x+1, y-1);
+					self.parent:ensureExists(x+1, y+1);
+					self.parent:ensureExists(x-1, y);
+					self.parent:ensureExists(x-1, y-1);
+					self.parent:ensureExists(x-1, y+1);
+					--}}}
+					if not data[x][y-1].seen then -- {{{ Fog of war
+						if not data[x+1][y].seen then
+							TextureWrapper["Map_FogNE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+						elseif not data[x-1][y].seen then
+							TextureWrapper["Map_FogNW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+						else
+							TextureWrapper["Map_FogN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+						end
+					elseif not data[x][y+1].seen then
+						if not data[x+1][y].seen then
+							TextureWrapper["Map_FogSE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+						elseif not data[x-1][y].seen then
+							TextureWrapper["Map_FogSW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+						else
+							TextureWrapper["Map_FogS"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+						end
+					elseif not data[x-1][y].seen then
+						TextureWrapper["Map_FogW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+					elseif not data[x+1][y].seen then
+						TextureWrapper["Map_FogE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+					end--}}}
 				end
 				gy = gy + 1;
 			end
