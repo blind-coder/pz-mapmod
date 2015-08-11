@@ -514,27 +514,35 @@ function BCMapWindow:renderMap() -- {{{
 					self.parent:ensureExists(x-1, y-1);
 					self.parent:ensureExists(x-1, y+1);
 					--}}}
-					if not data[x][y-1].seen then -- {{{ Fog of war
-						if not data[x+1][y].seen then
-							TextureWrapper["Map_FogNE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+					-- {{{ Fog of war
+					if data[x][y].seen and false then
+						if not data[x][y-1].seen then
+							if data[x+1][y].seen and data[x-1][y].seen then
+								TextureWrapper["Map_FogN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							end
+							if not data[x+1][y].seen then
+								TextureWrapper["Map_FogNE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							end
+							if not data[x-1][y].seen then
+								TextureWrapper["Map_FogNW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							end
+						elseif not data[x][y+1].seen then
+							if data[x+1][y+1].seen and data[x-1][y+1].seen then
+								TextureWrapper["Map_FogS"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							end
+							if not data[x+1][y].seen then
+								TextureWrapper["Map_FogSE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							end
+							if not data[x-1][y].seen then
+								TextureWrapper["Map_FogSW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							end
 						elseif not data[x-1][y].seen then
-							TextureWrapper["Map_FogNW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-						else
-							TextureWrapper["Map_FogN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							TextureWrapper["Map_FogW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+						elseif not data[x+1][y].seen then
+							TextureWrapper["Map_FogE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
 						end
-					elseif not data[x][y+1].seen then
-						if not data[x+1][y].seen then
-							TextureWrapper["Map_FogSE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-						elseif not data[x-1][y].seen then
-							TextureWrapper["Map_FogSW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-						else
-							TextureWrapper["Map_FogS"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-						end
-					elseif not data[x-1][y].seen then
-						TextureWrapper["Map_FogW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-					elseif not data[x+1][y].seen then
-						TextureWrapper["Map_FogE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-					end--}}}
+					end
+					--}}}
 				end
 				gy = gy + 1;
 			end
