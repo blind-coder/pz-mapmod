@@ -310,11 +310,12 @@ function BCMapWindow:drawSurroundings(range) -- {{{
 	self.yPlayer = yPlayer;
 end
 -- }}}
-function BCMapWindow:ensureExists(x, y)
+function BCMapWindow:ensureExists(x, y) -- {{{
 	local data = BCMapMod.getDataFromModData(self.item);
 	if not data[x] then data[x] = {} end
 	if not data[x][y] then data[x][y] = {seen = false, drawnBy = "", draw = {}}; end
 end
+-- }}}
 function BCMapWindow:drawSquare(x, y) -- {{{
 	local x2;
 	local y2;
