@@ -4,6 +4,14 @@ require "bcUtils"
 -- ISBuildMenu.cheat = true;
 -- ModData used:
 -- getModData()["BCMapMod"] = {
+--   [options] = { -- some options for this map
+--     [x] = 123,
+--     [y] = 123,
+--     [w] = 123,
+--     [h] = 123, -- position / dimensions of this map
+--     [zoom] = 8, -- zoomlevel
+--     [autoMoveMap] = true|false -- option for autoMoveMap
+--   }
 --   [x] = { -- xCoordinates of map, absolute
 --     [y] = { -- yCoordinates of map, absolute
 --       seen = true|false -- tile has been seen
@@ -146,9 +154,9 @@ end
 --}}}
 function BCMapWindow:onMapMouseWheel(del)--{{{
 	if (del > 0) then
-		self.parent.zoom = math.min(8, self.parent.zoom + 1);
+		self.parent:changeZoom(1);
 	else
-		self.parent.zoom = math.max(1, self.parent.zoom - 1);
+		self.parent:changeZoom(-1);
 	end
 	return true;
 end
@@ -179,36 +187,55 @@ function BCMapWindow:createChildren() -- {{{
 	self.renderPanel.onMouseMoveOutside = BCMapWindow.onMapMouseMove;
 	self:addChild(self.renderPanel);
 
-	self.drawMapButton = ISButton:new(0, 16, 100, 32, "Draw map", self, self.drawMap);
+	self.buttonPanel = ISPanel:new(0, 16, 100, self.height-32);
+	self.buttonPanel:initialise();
+	self.buttonPanel:setAnchorLeft(true);
+	self.buttonPanel:setAnchorTop(true);
+	self:addChild(self.buttonPanel);
+
+	self.drawMapButton = ISButton:new(0, 0, 100, 32, "Draw map", self, self.drawMap);
 	self.drawMapButton:initialise();
 	self.drawMapButton:setAnchorLeft(true);
 	self.drawMapButton:setAnchorTop(true);
-	self:addChild(self.drawMapButton);
+	self.buttonPanel:addChild(self.drawMapButton);
 
-	self.zoomOutButton = ISButton:new(0, 48, 100, 32, "Zoom -", self, self.zoomOut);
+	self.zoomOutButton = ISButton:new(0, 32, 100, 32, "Zoom -", self, self.zoomOut);
 	self.zoomOutButton:initialise();
 	self.zoomOutButton:setAnchorLeft(true);
 	self.zoomOutButton:setAnchorTop(true);
-	self:addChild(self.zoomOutButton);
+	self.buttonPanel:addChild(self.zoomOutButton);
 
-	self.zoomInButton = ISButton:new(0, 80, 100, 32, "Zoom +", self, self.zoomIn);
+	self.zoomInButton = ISButton:new(0, 64, 100, 32, "Zoom +", self, self.zoomIn);
 	self.zoomInButton:initialise();
 	self.zoomInButton:setAnchorLeft(true);
 	self.zoomInButton:setAnchorTop(true);
-	self:addChild(self.zoomInButton);
+	self.buttonPanel:addChild(self.zoomInButton);
 
-	self.findLocationButton = ISButton:new(0, 112, 100, 32, "Find Location", self, self.findLocation);
+	self.findLocationButton = ISButton:new(0, 96, 100, 32, "Find Location", self, self.findLocation);
 	self.findLocationButton:initialise();
 	self.findLocationButton:setAnchorLeft(true);
 	self.findLocationButton:setAnchorTop(true);
-	self:addChild(self.findLocationButton);
+	self.buttonPanel:addChild(self.findLocationButton);
+
+	self.autoMoveMap = ISTickBox:new(0, 128, 32, 32, "", self, self.toggleAutoMoveMap);
+	self.autoMoveMap:initialise();
+	self.autoMoveMap:addOption("Auto-move map", nil);
+	self.autoMoveMap:setSelected(1, BCMapMod.autoMoveMap);
+	self.autoMoveMap:setAnchorLeft(true);
+	self.autoMoveMap:setAnchorTop(true);
+	self.buttonPanel:addChild(self.autoMoveMap);
 
 	--[[self.forceDrawButton = ISButton:new(0, self.height-64, 100, 32, "Force draw", self, self.forceDraw);
 	self.forceDrawButton:initialise();
 	self.forceDrawButton:setAnchorLeft(true);
 	self.forceDrawButton:setAnchorTop(true);
-	self:addChild(self.forceDrawButton);
+	self.buttonPanel:addChild(self.forceDrawButton);
 	--]]
+end
+-- }}}
+function BCMapWindow:toggleAutoMoveMap(index, selected) -- {{{
+	BCMapMod.autoMoveMap = selected;
+	self:saveOptions();
 end
 -- }}}
 function BCMapWindow:findLocation() -- {{{
@@ -265,16 +292,19 @@ function BCMapWindow:zoomIn() -- {{{
 end
 -- }}}
 function BCMapWindow:changeZoom(change) -- {{{
-	if not self.zoom then
-		self.zoom = 1 + change;
+	self.zoom = self.zoom or 1;
+
+	if change > 0 then
+		self.zoom = self.zoom * 2;
 	else
-		self.zoom = self.zoom + change;
+		self.zoom = self.zoom / 2;
 	end
+
 	self.zoom = math.max(self.zoom, 1);
 	self.zoom = math.min(self.zoom, 8);
+	self:saveOptions();
 end
 -- }}}
-
 function BCMapWindow:drawMap() --{{{
 	BCMapMod.MapWindow:drawSurroundings(10);
 end
@@ -310,24 +340,19 @@ function BCMapWindow:drawSurroundings(range) -- {{{
 	self.yPlayer = yPlayer;
 end
 -- }}}
-function BCMapWindow:ensureExists(x, y) -- {{{
-	local data = BCMapMod.getDataFromModData(self.item);
-	if not data[x] then data[x] = {} end
-	if not data[x][y] then data[x][y] = {seen = false, drawnBy = "", draw = {}}; end
-end
--- }}}
 function BCMapWindow:drawSquare(x, y) -- {{{
 	local x2;
 	local y2;
+	local cell = getCell();
+	local data = BCMapMod.getDataFromModData(self.item);
 
 	for x2=x-1,x+1 do
+		if not data[x] then data[x] = {} end
 		for y2=y-1,y+1 do
-			self:ensureExists(x2, y2);
+			if not data[x][y] then data[x][y] = {seen = false, drawnBy = "", draw = {}}; end
 		end
 	end
 
-	local cell = getCell();
-	local data = BCMapMod.getDataFromModData(self.item);
 	local sq = cell:getGridSquare(x, y, 0);
 	local canSee = sq:isCanSee(0);
 
@@ -504,7 +529,8 @@ function BCMapWindow:renderMap() -- {{{
 
 						end
 					end--}}}
-					--{{{
+					-- {{{ Fog of war
+					--[[
 					self.parent:ensureExists(x, y);
 					self.parent:ensureExists(x, y-1);
 					self.parent:ensureExists(x, y+1);
@@ -514,9 +540,7 @@ function BCMapWindow:renderMap() -- {{{
 					self.parent:ensureExists(x-1, y);
 					self.parent:ensureExists(x-1, y-1);
 					self.parent:ensureExists(x-1, y+1);
-					--}}}
-					-- {{{ Fog of war
-					if data[x][y].seen and false then
+					if data[x][y].seen then
 						if not data[x][y-1].seen then
 							if data[x+1][y].seen and data[x-1][y].seen then
 								TextureWrapper["Map_FogN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
@@ -543,6 +567,7 @@ function BCMapWindow:renderMap() -- {{{
 							TextureWrapper["Map_FogE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
 						end
 					end
+					--]]
 					--}}}
 				end
 				gy = gy + 1;
@@ -551,6 +576,44 @@ function BCMapWindow:renderMap() -- {{{
 		gx = gx + 1;
 	end
 	self:clearStencilRect();
+end
+-- }}}
+function BCMapWindow:setX(x) -- {{{
+	ISCollapsableWindow.setX(self, x);
+	self:saveOptions();
+end
+-- }}}
+function BCMapWindow:setY(y) -- {{{
+	ISCollapsableWindow.setY(self, y);
+	self:saveOptions();
+end
+-- }}}
+function BCMapWindow:onResize() -- {{{
+	local dx = self:getWidth();
+	local dy = self:getHeight();
+	if dx < 300 then
+		self.buttonPanel:setVisible(false);
+		self.renderPanel:setX(0);
+		self.renderPanel:setWidth(dx);
+	else
+		self.buttonPanel:setVisible(true);
+		self.buttonPanel:setHeight(self.height-32);
+		self.renderPanel:setX(100);
+		self.renderPanel:setWidth(dx-100);
+	end
+	self:saveOptions();
+end
+-- }}}
+function BCMapWindow:saveOptions() -- {{{
+	local data = BCMapMod.getDataFromModData(self.item);
+	data.options = {};
+	data.options.x = self:getX();
+	data.options.y = self:getY();
+	data.options.w = self:getWidth();
+	data.options.h = self:getHeight();
+	data.options.zoom = self.zoom;
+	data.options.autoMoveMap = BCMapMod.autoMoveMap;
+	print(bcUtils.dump(data.options));
 end
 -- }}}
 function BCMapWindow:new (x, y, width, height, item) -- {{{
@@ -565,6 +628,19 @@ function BCMapWindow:new (x, y, width, height, item) -- {{{
 	o.locationKnown = false;
 	o.item = item;
 
+	local data = BCMapMod.getDataFromModData(item);
+	if not data.options then
+		o:saveOptions();
+	else
+		local _x, _y, _w, _h, _z, _a = data.options.x, data.options.y, data.options.w, data.options.h, data.options.zoom, data.options.autoMoveMap;
+		BCMapMod.autoMoveMap = _a;
+		o.zoom = _z or o.zoom;
+		o:setWidth(_w or width);
+		o:setHeight(_h or height);
+		o:setX(_x or x);
+		o:setY(_y or y);
+	end
+
 	return o
 end
 -- }}}
@@ -577,23 +653,38 @@ function BCMapMod.createWindow(item) -- {{{
 	m:addToUIManager();
 
 	BCMapMod.MapWindow = m;
+	BCMapMod.MapWindow:findLocation();
 end
 -- }}}
 function BCMapMod.cheatGetMap(player) -- {{{
 	getSpecificPlayer(player):getInventory():AddItem("BCMapMod.Map");
 end
 -- }}}
-function BCMapMod.createInventoryMenu(player, context, items) -- {{{
-	item = items[1];
-	if not instanceof(item, "InventoryItem") then
-		item = item.items[1];
+function BCMapMod.checkEquipMap() -- {{{
+	local player = getPlayer();
+	if BCMapMod.MapWindow then
+		-- Only one map window at a time
+		if player:getPrimaryHandItem()   == BCMapMod.MapWindow.item then return end
+		if player:getSecondaryHandItem() == BCMapMod.MapWindow.item then return end
+		BCMapMod.MapWindow:removeFromUIManager();
+		BCMapMod.MapWindow = nil;
+		return;
 	end
-	if item == nil then return end;
 
-	if item:getFullType() == "BCMapMod.Map" then
-		context:addOption("Open Map", item, BCMapMod.createWindow);
-	else
-		context:addOption("Cheat: Get Map", player, BCMapMod.cheatGetMap);
+	local item = player:getPrimaryHandItem();
+	if item and item:getFullType() == "BCMapMod.Map" then
+		BCMapMod.createWindow(item);
+		return;
+	end
+	local item = player:getSecondaryHandItem();
+	if item and item:getFullType() == "BCMapMod.Map" then
+		BCMapMod.createWindow(item);
+		return;
+	end
+
+	if BCMapMod.MapWindow then
+		BCMapMod.MapWindow:removeFromUIManager();
+		BCMapMod.MapWindow = nil;
 	end
 end
 -- }}}
@@ -639,9 +730,9 @@ function BCMapMod.onPlayerMove() -- {{{
 	local player = getSpecificPlayer(0);
 
 	if player:IsRunning() then 
-		if BCMapMod.MapWindow then
-			BCMapMod.MapWindow:removeFromUIManager();
-		end
+		-- if BCMapMod.MapWindow then
+			-- BCMapMod.MapWindow:removeFromUIManager();
+		-- end
 		return;
 	end -- No drawing or checking maps when you're running around
 
@@ -657,10 +748,23 @@ function BCMapMod.onPlayerMove() -- {{{
 	if bcUtils.isMap(primary) and bcUtils.isPenOrPencil(secondary) then
 		BCMapMod.MapWindow:drawSurroundings(3);
 	end
+
+	if BCMapMod.autoMoveMap then
+		BCMapMod.MapWindow:findLocation();
+	end
 end
 -- }}}
 
+Events.OnEquipPrimary.Add(BCMapMod.checkEquipMap);
+Events.OnEquipSecondary.Add(BCMapMod.checkEquipMap);
+Events.OnPlayerMove.Add(BCMapMod.onPlayerMove);
+
+Events.OnLoad.Add(BCMapMod.checkEquipMap);
+Events.OnGameStart.Add(TextureWrapper.init);
+
+function BCMapMod.createInventoryMenu(player, context, items) -- {{{
+	context:addOption("Cheat: Get Map", player, BCMapMod.cheatGetMap);
+end
+-- }}}
 Events.OnFillInventoryObjectContextMenu.Add(BCMapMod.createInventoryMenu);
 
-Events.OnPlayerMove.Add(BCMapMod.onPlayerMove);
-Events.OnGameStart.Add(TextureWrapper.init);
