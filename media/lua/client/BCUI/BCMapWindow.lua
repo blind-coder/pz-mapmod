@@ -171,7 +171,7 @@ function BCMapWindow:createChildren() -- {{{
 	ISCollapsableWindow.createChildren(self);
 
 	self.renderPanel = ISPanel:new(100, 16, self.width-100, self.height-32);
-	self.renderPanel.render = BCMapWindow.renderMap;
+	self.renderPanel.render = BCMapMod.renderMap;
 	self.renderPanel.parent = self;
 	self.renderPanel:initialise();
 	self.renderPanel:setAnchorRight(true);
@@ -467,117 +467,6 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 	end
 end
 -- }}}
-function BCMapWindow:renderMap() -- {{{
-	local data = BCMapMod.getDataFromModData(self.parent.item);
-	if bcUtils.tableIsEmpty(data) then return end;
-
-	local player   = getSpecificPlayer(0);
-	local xPlayer  = math.floor(player:getX());
-	local yPlayer  = math.floor(player:getY());
-	local range = 10 --[[ * self.parent.zoom ]];
-	local rW = 64 / self.parent.zoom;
-	local rH = rW; -- math.min(self.width, self.height) / (range * 2);
-	local xRange = math.ceil(self.width/rW);
-	local yRange = math.ceil(self.height/rH);
-
-	local gx = 0;
-	self:setStencilRect(0, 0, self.width, self.height);
-	for x=self.parent.xloc - math.floor(xRange / 2),self.parent.xloc + math.ceil(xRange / 2) do
-		if data[x] then
-			local gy = 0;
-			for y=self.parent.yloc - math.floor(yRange / 2),self.parent.yloc + math.ceil(yRange / 2) do
-				if self.parent.locationKnown and x == self.parent.xPlayer and y == self.parent.yPlayer then
-					self:drawRect(rW * gx, rH * gy, rW, rH, 1.0, 0.3, 0, 0);
-				end
-
-				if data[x][y] then
-					if data[x][y].seen then
-						TextureWrapper["Map_BaseTile"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-					end
-
-					if not bcUtils.tableIsEmpty(data[x][y].draw) then -- {{{
-						for _,drawElement in pairs(data[x][y].draw) do
-							local c = drawElement.color;
-
-							if drawElement.draw == "wall" then
-								if drawElement.collideN and drawElement.collideW then
-									TextureWrapper["Map_WallNW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
-								elseif drawElement.collideN then
-									TextureWrapper["Map_WallW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
-								elseif drawElement.collideW then
-									TextureWrapper["Map_WallN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
-								end
-							end
-
-							if drawElement.desc and drawElement.draw == "container" then
-								TextureWrapper["Map_Container"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
-							end
-							if drawElement.draw == "street" then
-								TextureWrapper["Map_Street"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
-							end
-							if drawElement.draw == "dirtroad" then
-								TextureWrapper["Map_DirtRoad"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
-							end
-							if drawElement.draw == "door" then
-								if drawElement.collideN then
-									TextureWrapper["Map_DoorW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
-								end
-								if drawElement.collideW then
-									TextureWrapper["Map_DoorN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
-								end
-							end
-
-						end
-					end--}}}
-					-- {{{ Fog of war
-					--[[
-					self.parent:ensureExists(x, y);
-					self.parent:ensureExists(x, y-1);
-					self.parent:ensureExists(x, y+1);
-					self.parent:ensureExists(x+1, y);
-					self.parent:ensureExists(x+1, y-1);
-					self.parent:ensureExists(x+1, y+1);
-					self.parent:ensureExists(x-1, y);
-					self.parent:ensureExists(x-1, y-1);
-					self.parent:ensureExists(x-1, y+1);
-					if data[x][y].seen then
-						if not data[x][y-1].seen then
-							if data[x+1][y].seen and data[x-1][y].seen then
-								TextureWrapper["Map_FogN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-							end
-							if not data[x+1][y].seen then
-								TextureWrapper["Map_FogNE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-							end
-							if not data[x-1][y].seen then
-								TextureWrapper["Map_FogNW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-							end
-						elseif not data[x][y+1].seen then
-							if data[x+1][y+1].seen and data[x-1][y+1].seen then
-								TextureWrapper["Map_FogS"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-							end
-							if not data[x+1][y].seen then
-								TextureWrapper["Map_FogSE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-							end
-							if not data[x-1][y].seen then
-								TextureWrapper["Map_FogSW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-							end
-						elseif not data[x-1][y].seen then
-							TextureWrapper["Map_FogW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-						elseif not data[x+1][y].seen then
-							TextureWrapper["Map_FogE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
-						end
-					end
-					--]]
-					--}}}
-				end
-				gy = gy + 1;
-			end
-		end
-		gx = gx + 1;
-	end
-	self:clearStencilRect();
-end
--- }}}
 function BCMapWindow:setX(x) -- {{{
 	ISCollapsableWindow.setX(self, x);
 	self:saveOptions();
@@ -752,6 +641,117 @@ function BCMapMod.onPlayerMove() -- {{{
 	if BCMapMod.autoMoveMap then
 		BCMapMod.MapWindow:findLocation();
 	end
+end
+-- }}}
+function BCMapMod.renderMap() -- {{{
+	local data = BCMapMod.getDataFromModData(self.parent.item);
+	if bcUtils.tableIsEmpty(data) then return end;
+
+	local player   = getSpecificPlayer(0);
+	local xPlayer  = math.floor(player:getX());
+	local yPlayer  = math.floor(player:getY());
+	local range = 10 --[[ * self.parent.zoom ]];
+	local rW = 64 / self.parent.zoom;
+	local rH = rW; -- math.min(self.width, self.height) / (range * 2);
+	local xRange = math.ceil(self.width/rW);
+	local yRange = math.ceil(self.height/rH);
+
+	local gx = 0;
+	self:setStencilRect(0, 0, self.width, self.height);
+	for x=self.parent.xloc - math.floor(xRange / 2),self.parent.xloc + math.ceil(xRange / 2) do
+		if data[x] then
+			local gy = 0;
+			for y=self.parent.yloc - math.floor(yRange / 2),self.parent.yloc + math.ceil(yRange / 2) do
+				if self.parent.locationKnown and x == self.parent.xPlayer and y == self.parent.yPlayer then
+					self:drawRect(rW * gx, rH * gy, rW, rH, 1.0, 0.3, 0, 0);
+				end
+
+				if data[x][y] then
+					if data[x][y].seen then
+						TextureWrapper["Map_BaseTile"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+					end
+
+					if not bcUtils.tableIsEmpty(data[x][y].draw) then -- {{{
+						for _,drawElement in pairs(data[x][y].draw) do
+							local c = drawElement.color;
+
+							if drawElement.draw == "wall" then
+								if drawElement.collideN and drawElement.collideW then
+									TextureWrapper["Map_WallNW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
+								elseif drawElement.collideN then
+									TextureWrapper["Map_WallW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
+								elseif drawElement.collideW then
+									TextureWrapper["Map_WallN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
+								end
+							end
+
+							if drawElement.desc and drawElement.draw == "container" then
+								TextureWrapper["Map_Container"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
+							end
+							if drawElement.draw == "street" then
+								TextureWrapper["Map_Street"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
+							end
+							if drawElement.draw == "dirtroad" then
+								TextureWrapper["Map_DirtRoad"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
+							end
+							if drawElement.draw == "door" then
+								if drawElement.collideN then
+									TextureWrapper["Map_DoorW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
+								end
+								if drawElement.collideW then
+									TextureWrapper["Map_DoorN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
+								end
+							end
+
+						end
+					end--}}}
+					-- {{{ Fog of war
+					--[[
+					self.parent:ensureExists(x, y);
+					self.parent:ensureExists(x, y-1);
+					self.parent:ensureExists(x, y+1);
+					self.parent:ensureExists(x+1, y);
+					self.parent:ensureExists(x+1, y-1);
+					self.parent:ensureExists(x+1, y+1);
+					self.parent:ensureExists(x-1, y);
+					self.parent:ensureExists(x-1, y-1);
+					self.parent:ensureExists(x-1, y+1);
+					if data[x][y].seen then
+						if not data[x][y-1].seen then
+							if data[x+1][y].seen and data[x-1][y].seen then
+								TextureWrapper["Map_FogN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							end
+							if not data[x+1][y].seen then
+								TextureWrapper["Map_FogNE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							end
+							if not data[x-1][y].seen then
+								TextureWrapper["Map_FogNW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							end
+						elseif not data[x][y+1].seen then
+							if data[x+1][y+1].seen and data[x-1][y+1].seen then
+								TextureWrapper["Map_FogS"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							end
+							if not data[x+1][y].seen then
+								TextureWrapper["Map_FogSE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							end
+							if not data[x-1][y].seen then
+								TextureWrapper["Map_FogSW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+							end
+						elseif not data[x-1][y].seen then
+							TextureWrapper["Map_FogW"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+						elseif not data[x+1][y].seen then
+							TextureWrapper["Map_FogE"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, 1, 1, 1, 1);
+						end
+					end
+					--]]
+					--}}}
+				end
+				gy = gy + 1;
+			end
+		end
+		gx = gx + 1;
+	end
+	self:clearStencilRect();
 end
 -- }}}
 
