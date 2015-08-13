@@ -1,0 +1,4 @@
+UI_EN = {
+	UI_optionscreen_binding_Map = "Map",
+	UI_optionscreen_binding_Equip_Map = "Equip map"
+}

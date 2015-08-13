@@ -1,0 +1,4 @@
+UI_DE = {
+	UI_optionscreen_binding_Map = "Karte",
+	UI_optionscreen_binding_Equip_Map = "Karte oeffnen"
+}

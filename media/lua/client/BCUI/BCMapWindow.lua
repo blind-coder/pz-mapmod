@@ -659,7 +659,7 @@ function BCMapMod.onPlayerMove() -- {{{
 
 	local player = getSpecificPlayer(0);
 
-	if player:IsRunning() then 
+	if player:IsRunning() then
 		-- if BCMapMod.MapWindow then
 			-- BCMapMod.MapWindow:removeFromUIManager();
 		-- end
@@ -830,3 +830,31 @@ end
 -- }}}
 Events.OnFillInventoryObjectContextMenu.Add(BCMapMod.createInventoryMenu);
 
+function BCMapMod.onKeyPressed(key) -- {{{
+	if key == getCore():getKey("Equip_Map") then
+		if BCMapMod.MapWindow then
+			BCMapMod.MapWindow:removeFromUIManager();
+			BCMapMod.MapWindow = nil;
+			return;
+		end
+		local player = getPlayer();
+		local map = player:getPrimaryHandItem();
+		if map ~= nil and map:getFullType() == "BCMapMod.Map" then
+			BCMapMod.createWindow(map);
+			return;
+		end
+		map = player:getSecondaryHandItem();
+		if map ~= nil and map:getFullType() == "BCMapMod.Map" then
+			BCMapMod.createWindow(map);
+			return;
+		end
+		local player = getSpecificPlayer(0);
+		local inv = player:getInventory();
+		map = inv:FindAndReturn("BCMapMod.Map");
+		if map ~= nil then
+			ISTimedActionQueue.add(ISEquipWeaponAction:new(player, map, 120, false, false));
+		end
+	end
+end
+-- }}}
+Events.OnKeyPressed.Add(BCMapMod.onKeyPressed);
