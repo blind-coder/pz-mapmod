@@ -327,19 +327,28 @@ function BCMapWindow:drawSurroundings(range) -- {{{
 	local yCell    = math.floor(yPlayer / 300);
 	range = range --[[ + (1+player:getTrait(Trait.Cartographer)) ]];
 
+	local inv = player:getInventory();
+	local pen = inv:FindAndReturn("Base.Pen");
+	if pen == nil then
+		pen = inv:FindAndReturn("Base.Pencil");
+	end
+	if pen == nil then
+		player:Say("I have no pen or pencil to draw with.");
+		return;
+	end
+
 	local data = BCMapMod.getDataFromModData(self.item);
 	if not data.range[xCell] then
 		data.range[xCell] = {};
 	end
 	if not data.range[xCell][yCell] then
-		data.range[xCell][yCell] = false;
-	end
-	if (not data.range[xCell][yCell]) and (data.range.freePaper > 0) then
-		data.range[xCell][yCell] = true;
-		data.range.freePaper = data.range.freePaper - 1;
-	else
-		player:Say("I am out of paper.");
-		return;
+		if data.range.freePaper > 0 then
+			data.range[xCell][yCell] = true;
+			data.range.freePaper = data.range.freePaper - 1;
+		else
+			player:Say("I am out of paper.");
+			return;
+		end
 	end
 
 	local firstTime = false;
