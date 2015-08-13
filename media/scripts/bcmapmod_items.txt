@@ -5,7 +5,7 @@ module BCMapMod
 		Weight = 0.25,
 		Type = Normal,
 		DisplayName = Hand-drawn map,
-		Icon = BCMapModMap
+		Icon = Map,
 	}
 }
 

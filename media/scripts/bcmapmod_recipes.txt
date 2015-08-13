@@ -1,0 +1,13 @@
+module BCMapMod
+{
+	recipe Create a Map
+	{
+		SheetPaper=4,
+		Paperclip=1,
+
+		Result:BCMapMod.Map,
+		Time:150.0,
+		Category:General
+	}
+
+}

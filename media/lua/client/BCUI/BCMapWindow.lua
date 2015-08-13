@@ -11,7 +11,14 @@ require "bcUtils"
 --     [h] = 123, -- position / dimensions of this map
 --     [zoom] = 8, -- zoomlevel
 --     [autoMoveMap] = true|false -- option for autoMoveMap
---   }
+--   },
+--   [range] = { -- a range identifier to restrict drawing to available paper space
+--     [freePaper] = int -- amount of unused paper in this map to use for additional cells
+--     [cellX] = {
+--       [cellY] = true -- if set and true, have paper for this cell
+--     }
+--   },
+--   [empty] = true|false, -- if this map is empty
 --   [x] = { -- xCoordinates of map, absolute
 --     [y] = { -- yCoordinates of map, absolute
 --       seen = true|false -- tile has been seen
@@ -252,6 +259,7 @@ function BCMapWindow:findLocation() -- {{{
 	end
 
 	local data = BCMapMod.getDataFromModData(self.item);
+	if data.empty then return end;
 
 	local x;
 	local y;
@@ -315,17 +323,34 @@ function BCMapWindow:drawSurroundings(range) -- {{{
 	local chunkMap = cell:getChunkMap(0);
 	local xPlayer  = math.floor(player:getX());
 	local yPlayer  = math.floor(player:getY());
+	local xCell    = math.floor(xPlayer / 300);
+	local yCell    = math.floor(yPlayer / 300);
 	range = range --[[ + (1+player:getTrait(Trait.Cartographer)) ]];
 
 	local data = BCMapMod.getDataFromModData(self.item);
+	if not data.range[xCell] then
+		data.range[xCell] = {};
+	end
+	if not data.range[xCell][yCell] then
+		data.range[xCell][yCell] = false;
+	end
+	if (not data.range[xCell][yCell]) and (data.range.freePaper > 0) then
+		data.range[xCell][yCell] = true;
+		data.range.freePaper = data.range.freePaper - 1;
+	else
+		player:Say("I am out of paper.");
+		return;
+	end
 
-	if bcUtils.tableIsEmpty(data) then -- data is empty
+	local firstTime = false;
+	if data.empty then -- data is empty
 		self.locationKnown = true; -- player doesn't know its location unless this is the first draw of the map
+		firstTime = true;
 	end
 
 	if not self.locationKnown then
 		player:Say("I don't know where I am...");
-		return
+		return;
 	end
 
 	for x=xPlayer-range,xPlayer+range do
@@ -334,6 +359,10 @@ function BCMapWindow:drawSurroundings(range) -- {{{
 				self:drawSquare(x, y);
 			end
 		end
+	end
+
+	if firstTime then
+		self:findLocation();
 	end
 
 	self.xPlayer = xPlayer;
@@ -345,6 +374,7 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 	local y2;
 	local cell = getCell();
 	local data = BCMapMod.getDataFromModData(self.item);
+	data.empty = false;
 
 	for x2=x-1,x+1 do
 		if not data[x] then data[x] = {} end
@@ -502,7 +532,6 @@ function BCMapWindow:saveOptions() -- {{{
 	data.options.h = self:getHeight();
 	data.options.zoom = self.zoom;
 	data.options.autoMoveMap = BCMapMod.autoMoveMap;
-	print(bcUtils.dump(data.options));
 end
 -- }}}
 function BCMapWindow:new (x, y, width, height, item) -- {{{
@@ -581,6 +610,9 @@ function BCMapMod.getDataFromModData(item) -- {{{
 	local md = item:getModData();
 	if not md["BCMapMod"] then
 		md["BCMapMod"] = {};
+		md["BCMapMod"].range = {};
+		md["BCMapMod"].range.freePaper = 4; -- so we can draw 4 cells
+		md["BCMapMod"].empty = true;
 	end
 	return md["BCMapMod"];
 end
@@ -643,7 +675,8 @@ function BCMapMod.onPlayerMove() -- {{{
 	end
 end
 -- }}}
-function BCMapMod.renderMap() -- {{{
+function BCMapMod:renderMap() -- {{{
+	if not self.parent.item then return end;
 	local data = BCMapMod.getDataFromModData(self.parent.item);
 	if bcUtils.tableIsEmpty(data) then return end;
 
@@ -763,7 +796,27 @@ Events.OnLoad.Add(BCMapMod.checkEquipMap);
 Events.OnGameStart.Add(TextureWrapper.init);
 
 function BCMapMod.createInventoryMenu(player, context, items) -- {{{
-	context:addOption("Cheat: Get Map", player, BCMapMod.cheatGetMap);
+	local item = items[1];
+	if not instanceof(item, "InventoryItem") then
+		item = item.items[1];
+	end
+	if item == nil then return end;
+
+	if item:getFullType() == "BCMapMod.Map" then
+		local o = context:addOption("Add page to map", player, BCMapMod.AddPageToMap, item);
+		if getSpecificPlayer(player):getInventory():FindAndReturn("Base.SheetPaper") == nil then
+			o.notAvailable = true;
+		end
+	end
+end
+-- }}}
+function BCMapMod.AddPageToMap(player, map) -- {{{
+	player = getSpecificPlayer(player);
+	local inv = player:getInventory();
+	inv:Remove(inv:FindAndReturn("Base.SheetPaper"));
+	local data = BCMapMod.getDataFromModData(map);
+	data.range.freePaper = data.range.freePaper + 1;
+	player:Say("There are now "..data.range.freePaper.." free pages in this map.");
 end
 -- }}}
 Events.OnFillInventoryObjectContextMenu.Add(BCMapMod.createInventoryMenu);
