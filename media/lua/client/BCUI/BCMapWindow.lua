@@ -888,3 +888,13 @@ function BCMapMod.onKeyPressed(key) -- {{{
 end
 -- }}}
 Events.OnKeyPressed.Add(BCMapMod.onKeyPressed);
+
+BCMapMod.ISToolTipInvRender = ISToolTipInv.render;
+ISToolTipInv.render = function(self) -- {{{
+	if self.item:getFullType() == "BCMapMod.Map" then
+		local data = BCMapMod.getDataFromModData(self.item);
+		self.item:setTooltip("Pages left: "..data.range.freePaper);
+	end
+	BCMapMod.ISToolTipInvRender(self);
+end
+-- }}}
