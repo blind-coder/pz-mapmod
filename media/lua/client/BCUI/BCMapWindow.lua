@@ -386,9 +386,9 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 	data.empty = false;
 
 	for x2=x-1,x+1 do
-		if not data[x] then data[x] = {} end
+		if not data[x2] then data[x2] = {} end
 		for y2=y-1,y+1 do
-			if not data[x][y] then data[x][y] = {seen = false, drawnBy = "", draw = {}}; end
+			if not data[x2][y2] then data[x2][y2] = {seen = false, drawnBy = "", draw = {}}; end
 		end
 	end
 
