@@ -336,6 +336,7 @@ function BCMapWindow:drawSurroundings(range) -- {{{
 		player:Say("I have no pen or pencil to draw with.");
 		return;
 	end
+	BCMapMod.pen = pen;
 
 	local data = BCMapMod.getDataFromModData(self.item);
 	if not data.range[xCell] then
@@ -574,6 +575,18 @@ end
 
 BCMapMod = {};
 
+BCMapMod.Colors = {
+	{r = 0.914, g = 0.914, b = 0.914, a = 1.0},
+	{r = 0.702, g = 0.294, b = 0.282, a = 1.0},
+	{r = 0.353, g = 0.416, b = 0.714, a = 1.0},
+	{r = 0.420, g = 0.714, b = 0.345, a = 1.0},
+	{r = 0.224, g = 0.224, b = 0.224, a = 1.0},
+	{r = 0.886, g = 0.655, b = 0.220, a = 1.0},
+	{r = 0.659, g = 0.110, b = 0.843, a = 1.0},
+	{r = 0.804, g = 0.843, b = 0.102, a = 1.0},
+	{r = 0.125, g = 0.8, b = 0.784, a = 1.0}
+};
+
 function BCMapMod.createWindow(item) -- {{{
 	local m = BCMapWindow:new(50, 50, getCore():getScreenWidth() - 100, getCore():getScreenHeight() - 100, item);
 	m:setVisible(true);
@@ -627,12 +640,21 @@ function BCMapMod.getDataFromModData(item) -- {{{
 end
 -- }}}
 function BCMapMod.newDrawElement() -- {{{
+	local color = { r = 0.6, g = 0.6, b = 0.6, a = 1.0 };
+	if BCMapMod.pen:getFullType() == "Base.Pen" then
+		md = BCMapMod.pen:getModData();
+		if md.BCMapMod == nil then
+			md.BCMapMod = {};
+			md.BCMapMod.Color = BCMapMod.Colors[ZombRand(1, #BCMapMod.Colors)];
+		end
+		color = md.BCMapMod.Color;
+	end
 	return {
 		collideN = false,
 		collideW = false,
 		draw = "",
 		desc = "",
-		color = { r = 0.6, g = 0.6, b = 0.6, a = 1.0 },
+		color = color,
 		street = {
 			left = false,
 			right = false,
@@ -716,6 +738,7 @@ function BCMapMod:renderMap() -- {{{
 					if not bcUtils.tableIsEmpty(data[x][y].draw) then -- {{{
 						for _,drawElement in pairs(data[x][y].draw) do
 							local c = drawElement.color;
+							c.a = c.a or 1.0;
 
 							if drawElement.draw == "wall" then
 								if drawElement.collideN and drawElement.collideW then
@@ -742,6 +765,13 @@ function BCMapMod:renderMap() -- {{{
 								end
 								if drawElement.collideW then
 									TextureWrapper["Map_DoorN"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
+								end
+							end
+							if drawElement.draw == "tree" then
+								if (x + y) % 2 == 0 then
+									TextureWrapper["Map_TreePine"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
+								else
+									TextureWrapper["Map_TreeNormal"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
 								end
 							end
 
