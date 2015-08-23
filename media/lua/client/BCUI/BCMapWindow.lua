@@ -328,9 +328,16 @@ function BCMapWindow:drawSurroundings(range) -- {{{
 	range = range --[[ + (1+player:getTrait(Trait.Cartographer)) ]];
 
 	local inv = player:getInventory();
-	local pen = inv:FindAndReturn("Base.Pen");
-	if pen == nil then
-		pen = inv:FindAndReturn("Base.Pencil");
+	local pen;
+	if bcUtils.isPenOrPencil(player:getPrimaryHandItem()) then
+		pen = player:getPrimaryHandItem();
+	elseif bcUtils.isPenOrPencil(player:getSecondaryHandItem()) then
+		pen = player:getSecondaryHandItem();
+	else
+		pen = inv:FindAndReturn("Base.Pen");
+		if pen == nil then
+			pen = inv:FindAndReturn("Base.Pencil");
+		end
 	end
 	if pen == nil then
 		player:Say("I have no pen or pencil to draw with.");
@@ -453,7 +460,6 @@ function BCMapWindow:drawSquare(x, y) -- {{{
 				doAdd = true;
 			elseif bcUtils.isContainer(it) then
 				newDraw.draw = "container";
-				newDraw.desc = tostring(it:getContainer():getType());
 				doAdd = true;
 			else
 				--print(x.."x"..y..": Item #"..(k+1)..": "..tostring(it:getName()).."/"..tostring(it:getTextureName()));
@@ -594,10 +600,6 @@ function BCMapMod.createWindow(item) -- {{{
 
 	BCMapMod.MapWindow = m;
 	BCMapMod.MapWindow:findLocation();
-end
--- }}}
-function BCMapMod.cheatGetMap(player) -- {{{
-	getSpecificPlayer(player):getInventory():AddItem("BCMapMod.Map");
 end
 -- }}}
 function BCMapMod.checkEquipMap() -- {{{
@@ -750,7 +752,7 @@ function BCMapMod:renderMap() -- {{{
 								end
 							end
 
-							if drawElement.desc and drawElement.draw == "container" then
+							if drawElement.draw == "container" then
 								TextureWrapper["Map_Container"].renderScaled(self, rW * gx, rH * gy, 1/self.parent.zoom, c.a, c.r, c.g, c.b);
 							end
 							if drawElement.draw == "street" then
