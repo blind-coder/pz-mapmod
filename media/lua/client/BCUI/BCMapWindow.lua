@@ -313,8 +313,18 @@ function BCMapWindow:changeZoom(change) -- {{{
 	self:saveOptions();
 end
 -- }}}
-function BCMapWindow:drawMap() --{{{
+function taPerform() -- {{{
 	BCMapMod.MapWindow:drawSurroundings(10);
+end
+-- }}}
+function taIsValid() -- {{{
+	return true;
+end
+-- }}}
+function BCMapWindow:drawMap() --{{{
+	local ta = BCUGenericTA:new(getPlayer(), 30);
+	ta:setOnPerform(taPerform);
+	ISTimedActionQueue.add(ta);
 end
 -- }}}
 function BCMapWindow:drawSurroundings(range) -- {{{
